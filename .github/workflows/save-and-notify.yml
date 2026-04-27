@@ -1,0 +1,125 @@
+name: Daily Deadline Reminder
+
+on:
+  schedule:
+    # 毎日 9:00 JST = UTC 00:00
+    - cron: '0 0 * * 1-5'   # 月〜金のみ
+  workflow_dispatch:          # 手動実行も可能
+
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Check deadlines and send reminders
+        env:
+          TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
+          REMIND_DAYS_A: '3'   # 3日前
+          REMIND_DAYS_B: '1'   # 1日前
+        run: |
+          node -e "
+          const fs   = require('fs');
+          const https = require('https');
+
+          const data = JSON.parse(fs.readFileSync('data/tasks.json', 'utf8'));
+
+          // 今日 (JST)
+          const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
+          now.setHours(0, 0, 0, 0);
+
+          const remindDaysA = parseInt(process.env.REMIND_DAYS_A) || 3;
+          const remindDaysB = parseInt(process.env.REMIND_DAYS_B) || 1;
+
+          const reminders3 = [];
+          const reminders1 = [];
+          const remindersToday = [];
+
+          data.tasks.forEach(task => {
+            if (task.status === 'done') return;   // 完了済みはスキップ
+
+            const end  = new Date(task.end + 'T00:00:00');
+            const diff = Math.round((end - now) / 86400000);
+
+            // 担当者の Teams メンション取得
+            const member  = (data.members || []).find(m => m.name === task.owner);
+            const mention  = member && member.teamsId ? member.teamsId : task.owner;
+            const email    = member ? member.email : '';
+
+            const line = \`**\${task.name}**  担当: \${mention}  期限: \${task.end}\`;
+
+            if (diff === remindDaysA)  reminders3.push(line);
+            if (diff === remindDaysB)  reminders1.push(line);
+            if (diff === 0)            remindersToday.push(line);
+          });
+
+          const sections = [];
+          if (reminders3.length > 0) {
+            sections.push({
+              activityTitle: '⚠️ 期限 ' + remindDaysA + ' 日前のタスク',
+              text: reminders3.join('\\n\\n')
+            });
+          }
+          if (reminders1.length > 0) {
+            sections.push({
+              activityTitle: '🚨 期限 ' + remindDaysB + ' 日前のタスク（明日まで！）',
+              text: reminders1.join('\\n\\n')
+            });
+          }
+          if (remindersToday.length > 0) {
+            sections.push({
+              activityTitle: '🔴 本日が期限のタスク',
+              text: remindersToday.join('\\n\\n')
+            });
+          }
+
+          if (sections.length === 0) {
+            console.log('No reminders for today. Skipping.');
+            process.exit(0);
+          }
+
+          const repo   = process.env.GITHUB_REPOSITORY || '';
+          const pages  = repo
+            ? 'https://' + repo.split('/')[0] + '.github.io/' + repo.split('/')[1]
+            : '';
+
+          const card = {
+            '@type':    'MessageCard',
+            '@context': 'http://schema.org/extensions',
+            summary:    'タスク期限リマインダー',
+            themeColor: 'FF6B35',
+            title: '📅 タスク期限リマインダー — ' + now.toLocaleDateString('ja-JP'),
+            sections,
+            potentialAction: pages ? [{
+              '@type': 'OpenUri',
+              name:    'ガントチャートを確認',
+              targets: [{ os: 'default', uri: pages }]
+            }] : []
+          };
+
+          const body = JSON.stringify(card);
+          const webhook = process.env.TEAMS_WEBHOOK;
+
+          if (!webhook) {
+            console.log('TEAMS_WEBHOOK not set. Message would be:');
+            console.log(body);
+            process.exit(0);
+          }
+
+          const url = new URL(webhook);
+          const req = https.request({
+            hostname: url.hostname,
+            path:     url.pathname + url.search,
+            method:   'POST',
+            headers:  { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
+          }, res => {
+            console.log('Teams response:', res.statusCode);
+            res.resume();
+          });
+          req.on('error', e => { console.error('Error:', e.message); process.exit(1); });
+          req.write(body);
+          req.end();
+          "
+        env:
+          GITHUB_REPOSITORY: ${{ github.repository }}

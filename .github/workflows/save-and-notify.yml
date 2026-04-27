@@ -1,125 +1,117 @@
-name: Daily Deadline Reminder
+name: Save & Notify Teams
 
 on:
-  schedule:
-    # 毎日 9:00 JST = UTC 00:00
-    - cron: '0 0 * * 1-5'   # 月〜金のみ
-  workflow_dispatch:          # 手動実行も可能
+  push:
+    branches:
+      - main
+    paths:
+      - 'data/tasks.json'
+
+permissions:
+  contents: write
+  pages: write
+  id-token: write
 
 jobs:
-  remind:
+  notify-and-export:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Check deadlines and send reminders
-        env:
-          TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
-          REMIND_DAYS_A: '3'   # 3日前
-          REMIND_DAYS_B: '1'   # 1日前
+      # ── タスクデータを読んでTeams通知メッセージを生成 ──
+      - name: Build Teams notification
+        id: build-msg
         run: |
           node -e "
-          const fs   = require('fs');
-          const https = require('https');
-
+          const fs = require('fs');
           const data = JSON.parse(fs.readFileSync('data/tasks.json', 'utf8'));
 
-          // 今日 (JST)
-          const now = new Date(new Date().toLocaleString('en-US', { timeZone: 'Asia/Tokyo' }));
-          now.setHours(0, 0, 0, 0);
+          const now = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+          const commit = process.env.GITHUB_SHA.slice(0,7);
+          const repo   = process.env.GITHUB_REPOSITORY;
+          const pages  = 'https://' + repo.split('/')[0] + '.github.io/' + repo.split('/')[1];
 
-          const remindDaysA = parseInt(process.env.REMIND_DAYS_A) || 3;
-          const remindDaysB = parseInt(process.env.REMIND_DAYS_B) || 1;
+          const doing = data.tasks.filter(t => t.status === 'doing').length;
+          const done  = data.tasks.filter(t => t.status === 'done').length;
+          const total = data.tasks.length;
 
-          const reminders3 = [];
-          const reminders1 = [];
-          const remindersToday = [];
-
-          data.tasks.forEach(task => {
-            if (task.status === 'done') return;   // 完了済みはスキップ
-
-            const end  = new Date(task.end + 'T00:00:00');
-            const diff = Math.round((end - now) / 86400000);
-
-            // 担当者の Teams メンション取得
-            const member  = (data.members || []).find(m => m.name === task.owner);
-            const mention  = member && member.teamsId ? member.teamsId : task.owner;
-            const email    = member ? member.email : '';
-
-            const line = \`**\${task.name}**  担当: \${mention}  期限: \${task.end}\`;
-
-            if (diff === remindDaysA)  reminders3.push(line);
-            if (diff === remindDaysB)  reminders1.push(line);
-            if (diff === 0)            remindersToday.push(line);
-          });
-
-          const sections = [];
-          if (reminders3.length > 0) {
-            sections.push({
-              activityTitle: '⚠️ 期限 ' + remindDaysA + ' 日前のタスク',
-              text: reminders3.join('\\n\\n')
-            });
-          }
-          if (reminders1.length > 0) {
-            sections.push({
-              activityTitle: '🚨 期限 ' + remindDaysB + ' 日前のタスク（明日まで！）',
-              text: reminders1.join('\\n\\n')
-            });
-          }
-          if (remindersToday.length > 0) {
-            sections.push({
-              activityTitle: '🔴 本日が期限のタスク',
-              text: remindersToday.join('\\n\\n')
-            });
-          }
-
-          if (sections.length === 0) {
-            console.log('No reminders for today. Skipping.');
-            process.exit(0);
-          }
-
-          const repo   = process.env.GITHUB_REPOSITORY || '';
-          const pages  = repo
-            ? 'https://' + repo.split('/')[0] + '.github.io/' + repo.split('/')[1]
-            : '';
-
-          const card = {
-            '@type':    'MessageCard',
+          const msg = {
+            '@type': 'MessageCard',
             '@context': 'http://schema.org/extensions',
-            summary:    'タスク期限リマインダー',
-            themeColor: 'FF6B35',
-            title: '📅 タスク期限リマインダー — ' + now.toLocaleDateString('ja-JP'),
-            sections,
-            potentialAction: pages ? [{
+            summary: 'ガントチャート更新',
+            themeColor: '0076D7',
+            title: '📊 ガントチャートが更新されました',
+            sections: [{
+              activityTitle: '更新日時: ' + now,
+              activitySubtitle: 'コミット: ' + commit,
+              facts: [
+                { name: '総タスク数', value: String(total) },
+                { name: '進行中',     value: String(doing) },
+                { name: '完了済み',   value: String(done)  },
+              ]
+            }],
+            potentialAction: [{
               '@type': 'OpenUri',
-              name:    'ガントチャートを確認',
+              name: 'ガントチャートを開く',
               targets: [{ os: 'default', uri: pages }]
-            }] : []
+            }]
           };
-
-          const body = JSON.stringify(card);
-          const webhook = process.env.TEAMS_WEBHOOK;
-
-          if (!webhook) {
-            console.log('TEAMS_WEBHOOK not set. Message would be:');
-            console.log(body);
-            process.exit(0);
-          }
-
-          const url = new URL(webhook);
-          const req = https.request({
-            hostname: url.hostname,
-            path:     url.pathname + url.search,
-            method:   'POST',
-            headers:  { 'Content-Type': 'application/json', 'Content-Length': Buffer.byteLength(body) }
-          }, res => {
-            console.log('Teams response:', res.statusCode);
-            res.resume();
-          });
-          req.on('error', e => { console.error('Error:', e.message); process.exit(1); });
-          req.write(body);
-          req.end();
+          fs.writeFileSync('/tmp/teams-msg.json', JSON.stringify(msg));
+          console.log('Message built.');
           "
         env:
+          GITHUB_SHA: ${{ github.sha }}
           GITHUB_REPOSITORY: ${{ github.repository }}
+
+      # ── Teams Webhook 送信 ──
+      - name: Send Teams notification
+        run: |
+          curl -sf -X POST "${{ secrets.TEAMS_WEBHOOK }}" \
+            -H "Content-Type: application/json" \
+            -d @/tmp/teams-msg.json \
+            && echo "Teams notification sent." \
+            || echo "Teams webhook skipped (secret not set)."
+
+      # ── 閲覧専用HTMLを生成（ガントチャートの静的スナップショット） ──
+      - name: Generate read-only HTML export
+        run: |
+          node -e "
+          const fs = require('fs');
+          const html = fs.readFileSync('index.html', 'utf8');
+          const data = fs.readFileSync('data/tasks.json', 'utf8');
+
+          // データをインライン埋め込み、読み取り専用フラグをセット
+          const injected = html
+            .replace(
+              'let DATA = {',
+              'window.READONLY = true; let DATA = ' + data + '; let DATA_BAK = {'
+            )
+            .replace(
+              '</title>',
+              '</title><meta name=\"robots\" content=\"noindex\">'
+            );
+
+          fs.writeFileSync('gantt-export.html', injected);
+          console.log('Export generated.');
+          "
+
+      # ── Teams にエクスポートHTMLを添付送信 ──
+      # (Teamsの場合、ファイル添付はGraph API経由が必要なため
+      #  ここではGitHub Pagesリンクを通知する簡易版)
+      - name: Notify export ready
+        run: |
+          PAGES_URL="https://$(echo '${{ github.repository }}' | cut -d'/' -f1).github.io/$(echo '${{ github.repository }}' | cut -d'/' -f2)/gantt-export.html"
+          MSG="{\"text\":\"📎 **最新のガントチャートエクスポート**\\n\\n閲覧専用HTMLはこちら: ${PAGES_URL}\"}"
+          curl -sf -X POST "${{ secrets.TEAMS_WEBHOOK }}" \
+            -H "Content-Type: application/json" \
+            -d "$MSG" \
+            || echo "Skipped."
+
+      # ── GitHub Pages にデプロイ ──
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./
+          exclude_assets: '.github,node_modules'

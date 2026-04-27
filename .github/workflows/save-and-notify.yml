@@ -13,100 +13,150 @@ permissions:
   id-token: write
 
 jobs:
-  notify-and-export:
+  notify-and-deploy:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ── タスクデータを読んでTeams通知メッセージを生成 ──
-      - name: Build Teams notification
-        id: build-msg
+      # ── Adaptive Card（メンション付き）を生成して送信 ──
+      - name: Build and send Teams notification
+        env:
+          TEAMS_WEBHOOK:      ${{ secrets.TEAMS_WEBHOOK }}
+          GITHUB_SHA:         ${{ github.sha }}
+          GITHUB_REPOSITORY:  ${{ github.repository }}
         run: |
-          node -e "
-          const fs = require('fs');
-          const data = JSON.parse(fs.readFileSync('data/tasks.json', 'utf8'));
+          node << 'NODEJS'
+          const fs    = require('fs');
+          const https = require('https');
 
-          const now = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
-          const commit = process.env.GITHUB_SHA.slice(0,7);
-          const repo   = process.env.GITHUB_REPOSITORY;
-          const pages  = 'https://' + repo.split('/')[0] + '.github.io/' + repo.split('/')[1];
+          const data   = JSON.parse(fs.readFileSync('data/tasks.json', 'utf8'));
+          const now    = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
+          const commit = (process.env.GITHUB_SHA || 'unknown').slice(0, 7);
+          const repo   = process.env.GITHUB_REPOSITORY || '';
+          const pages  = repo
+            ? 'https://' + repo.split('/')[0] + '.github.io/' + repo.split('/')[1]
+            : '';
 
+          const total = data.tasks.length;
           const doing = data.tasks.filter(t => t.status === 'doing').length;
           const done  = data.tasks.filter(t => t.status === 'done').length;
-          const total = data.tasks.length;
+          const todo  = data.tasks.filter(t => t.status === 'todo').length;
 
-          const msg = {
-            '@type': 'MessageCard',
-            '@context': 'http://schema.org/extensions',
-            summary: 'ガントチャート更新',
-            themeColor: '0076D7',
-            title: '📊 ガントチャートが更新されました',
-            sections: [{
-              activityTitle: '更新日時: ' + now,
-              activitySubtitle: 'コミット: ' + commit,
-              facts: [
-                { name: '総タスク数', value: String(total) },
-                { name: '進行中',     value: String(doing) },
-                { name: '完了済み',   value: String(done)  },
-              ]
-            }],
-            potentialAction: [{
-              '@type': 'OpenUri',
-              name: 'ガントチャートを開く',
-              targets: [{ os: 'default', uri: pages }]
+          // 担当者マップ（名前 → member）
+          const memberMap = {};
+          (data.members || []).forEach(m => { memberMap[m.name] = m; });
+
+          // 未完了タスクのメンション行を生成
+          const mentionEntities = [];
+          const mentionRows     = [];
+
+          data.tasks
+            .filter(t => t.status !== 'done')
+            .forEach(task => {
+              const member = memberMap[task.owner] || {};
+              const email  = member.email || null;
+              const name   = task.owner || '未設定';
+
+              if (email) {
+                mentionEntities.push({
+                  type: 'mention',
+                  text: '<at>' + name + '</at>',
+                  mentioned: { id: email, name: name }
+                });
+                mentionRows.push({
+                  type: 'TextBlock',
+                  text: '<at>' + name + '</at>　' + task.name + '　期日: ' + task.end,
+                  wrap: true,
+                  spacing: 'Small'
+                });
+              } else {
+                mentionRows.push({
+                  type: 'TextBlock',
+                  text: '👤 ' + name + '　' + task.name + '　期日: ' + task.end,
+                  wrap: true,
+                  spacing: 'Small'
+                });
+              }
+            });
+
+          // Adaptive Card
+          const card = {
+            type: 'AdaptiveCard',
+            version: '1.4',
+            msteams: { entities: mentionEntities },
+            body: [
+              {
+                type: 'TextBlock',
+                text: '📊 ガントチャートが更新されました',
+                weight: 'Bolder',
+                size: 'Medium',
+                color: 'Accent'
+              },
+              {
+                type: 'FactSet',
+                facts: [
+                  { title: '更新日時', value: now },
+                  { title: 'コミット', value: commit },
+                  { title: '総タスク数', value: String(total) },
+                  { title: '進行中',     value: String(doing) },
+                  { title: '完了済み',   value: String(done)  },
+                  { title: '未着手',     value: String(todo)  }
+                ]
+              },
+              {
+                type: 'TextBlock',
+                text: '担当タスク一覧',
+                weight: 'Bolder',
+                spacing: 'Medium',
+                separator: true
+              },
+              ...mentionRows
+            ],
+            actions: pages ? [{
+              type: 'Action.OpenUrl',
+              title: 'ガントチャートを開く',
+              url: pages
+            }] : []
+          };
+
+          const payload = {
+            type: 'message',
+            attachments: [{
+              contentType: 'application/vnd.microsoft.card.adaptive',
+              content: card
             }]
           };
-          fs.writeFileSync('/tmp/teams-msg.json', JSON.stringify(msg));
-          console.log('Message built.');
-          "
-        env:
-          GITHUB_SHA: ${{ github.sha }}
-          GITHUB_REPOSITORY: ${{ github.repository }}
 
-      # ── Teams Webhook 送信 ──
-      - name: Send Teams notification
-        run: |
-          curl -sf -X POST "${{ secrets.TEAMS_WEBHOOK }}" \
-            -H "Content-Type: application/json" \
-            -d @/tmp/teams-msg.json \
-            && echo "Teams notification sent." \
-            || echo "Teams webhook skipped (secret not set)."
+          const body    = JSON.stringify(payload);
+          const webhook = process.env.TEAMS_WEBHOOK;
 
-      # ── 閲覧専用HTMLを生成（ガントチャートの静的スナップショット） ──
-      - name: Generate read-only HTML export
-        run: |
-          node -e "
-          const fs = require('fs');
-          const html = fs.readFileSync('index.html', 'utf8');
-          const data = fs.readFileSync('data/tasks.json', 'utf8');
+          if (!webhook) {
+            console.log('TEAMS_WEBHOOK not set. Skipping.');
+            process.exit(0);
+          }
 
-          // データをインライン埋め込み、読み取り専用フラグをセット
-          const injected = html
-            .replace(
-              'let DATA = {',
-              'window.READONLY = true; let DATA = ' + data + '; let DATA_BAK = {'
-            )
-            .replace(
-              '</title>',
-              '</title><meta name=\"robots\" content=\"noindex\">'
-            );
-
-          fs.writeFileSync('gantt-export.html', injected);
-          console.log('Export generated.');
-          "
-
-      # ── Teams にエクスポートHTMLを添付送信 ──
-      # (Teamsの場合、ファイル添付はGraph API経由が必要なため
-      #  ここではGitHub Pagesリンクを通知する簡易版)
-      - name: Notify export ready
-        run: |
-          PAGES_URL="https://$(echo '${{ github.repository }}' | cut -d'/' -f1).github.io/$(echo '${{ github.repository }}' | cut -d'/' -f2)/gantt-export.html"
-          MSG="{\"text\":\"📎 **最新のガントチャートエクスポート**\\n\\n閲覧専用HTMLはこちら: ${PAGES_URL}\"}"
-          curl -sf -X POST "${{ secrets.TEAMS_WEBHOOK }}" \
-            -H "Content-Type: application/json" \
-            -d "$MSG" \
-            || echo "Skipped."
+          const u   = new URL(webhook);
+          const req = https.request({
+            hostname: u.hostname,
+            path:     u.pathname + u.search,
+            method:   'POST',
+            headers: {
+              'Content-Type':   'application/json',
+              'Content-Length': Buffer.byteLength(body)
+            }
+          }, res => {
+            let raw = '';
+            res.on('data', d => raw += d);
+            res.on('end', () => {
+              console.log('Teams HTTP status:', res.statusCode);
+              if (res.statusCode >= 300) console.error('Response body:', raw);
+            });
+          });
+          req.on('error', e => { console.error('Error:', e.message); process.exit(1); });
+          req.write(body);
+          req.end();
+          NODEJS
 
       # ── GitHub Pages にデプロイ ──
       - name: Deploy to GitHub Pages

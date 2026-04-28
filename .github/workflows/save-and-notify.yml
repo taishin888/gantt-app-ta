@@ -19,7 +19,17 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
-      # ── Teams に通知 ──
+      - name: Show file structure (debug)
+        run: |
+          echo "=== Repository root ==="
+          ls -la
+          echo "=== .github/scripts ==="
+          ls -la .github/scripts/
+          echo "=== data/ ==="
+          ls -la data/
+          echo "=== data/tasks.json (first 30 lines) ==="
+          head -30 data/tasks.json
+
       - name: Send Teams notification
         env:
           TEAMS_WEBHOOK:     ${{ secrets.TEAMS_WEBHOOK }}
@@ -27,11 +37,20 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node .github/scripts/notify.js
 
-      # ── 閲覧専用HTMLをビルド（データ埋め込み済み） ──
       - name: Build read-only site
         run: node .github/scripts/build-readonly.js
 
-      # ── GitHub Pages にデプロイ ──
+      - name: Show generated site (debug)
+        run: |
+          echo "=== _site/ ==="
+          ls -la _site/
+          echo "=== _site/index.html size ==="
+          wc -c _site/index.html
+          echo "=== READONLY flag check ==="
+          grep 'READONLY' _site/index.html | head -3
+          echo "=== DATA check ==="
+          grep -o '"name":"[^"]*"' _site/index.html | head -8
+
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:

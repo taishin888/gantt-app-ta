@@ -419,6 +419,50 @@ select {
 }
 #tip .tip-name { font-weight: 700; margin-bottom: 4px; color: var(--text); }
 #tip .tip-row  { color: var(--text2); margin-top: 2px; font-size: 11px; }
+
+/* ── Milestone line ── */
+.ms-line {
+  position: absolute; top: 0; bottom: 0; width: 2px;
+  pointer-events: none; z-index: 7;
+}
+.ms-line:hover { z-index: 15; }
+.ms-label {
+  position: absolute; top: 2px; left: 4px;
+  font-size: 9px; font-weight: 700; font-family: var(--mono);
+  white-space: nowrap; padding: 2px 5px; border-radius: 3px;
+  color: #fff; pointer-events: none;
+}
+.ms-diamond {
+  position: absolute; top: -5px; left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 10px; height: 10px;
+  pointer-events: none;
+}
+
+/* ── Owner tags (multiple) ── */
+.owner-tags { display:flex; flex-wrap:wrap; gap:2px; }
+.owner-tag {
+  display:inline-flex; align-items:center;
+  padding:1px 5px; border-radius:10px;
+  font-size:10px; font-weight:600;
+  background:rgba(1,143,193,0.12); color:var(--accent);
+  white-space:nowrap;
+}
+.lc-owner { display:flex; flex-wrap:wrap; gap:2px; align-items:center; }
+
+/* ── Multi-select owners ── */
+.owner-checklist {
+  display:flex; flex-direction:column; gap:6px;
+  max-height:160px; overflow-y:auto;
+  border:1px solid var(--border); border-radius:6px; padding:8px;
+  background:var(--bg3);
+}
+.owner-check-item {
+  display:flex; align-items:center; gap:8px;
+  font-size:13px; cursor:pointer;
+}
+.owner-check-item input[type=checkbox] { width:15px; height:15px; accent-color:var(--accent); }
+
 </style>
 </head>
 <body>
@@ -433,7 +477,7 @@ select {
       <input type="file" id="logo-input" accept="image/*" onchange="handleLogoUpload(this)">
       <div id="logo-hint">ロゴをアップロード</div>
     </div>
-    <div id="app-title"> <span>gantt-app</span></div>
+    <div id="app-title">Project <span>Gantt</span></div>
   </div>
 
   <div class="period-nav">
@@ -441,18 +485,19 @@ select {
     <span id="period-label"></span>
     <button onclick="shiftPeriod(1)"  title="次の期間">›</button>
   </div>
-  <button class="btn" onclick="jumpToday()">今日</button>
-  <button class="btn" onclick="openAddTask()">＋ タスク</button>
-  <button class="btn primary" onclick="saveToGitHub()">💾 保存 &amp; 通知</button>
+  <button class="btn" onclick="jumpToday()">Today</button>
+  <button class="btn" onclick="openAddTask()">+ Task</button>
+  <button class="btn primary" onclick="saveToGitHub()">Save &amp; Notify</button>
   <span id="save-status">起動中...</span>
 </div>
 
 <!-- Tabs -->
 <div id="tabs">
-  <button class="tab active" data-panel="gantt-panel"> ガントチャート</button>
-  <button class="tab"        data-panel="task-panel"> タスク編集</button>
-  <button class="tab"        data-panel="members-panel"> メンバー</button>
-  <button class="tab"        data-panel="settings-panel"> 設定</button>
+  <button class="tab active" data-panel="gantt-panel">Gantt</button>
+  <button class="tab"        data-panel="task-panel">Tasks</button>
+  <button class="tab"        data-panel="members-panel">Members</button>
+  <button class="tab"        data-panel="milestone-panel">Milestones</button>
+  <button class="tab"        data-panel="settings-panel">Settings</button>
 </div>
 
 <!-- Main -->
@@ -513,7 +558,7 @@ select {
       <div class="section-card">
         <div class="section-card-header">
           <h3>グループ一覧</h3>
-          <button class="btn sm" onclick="openAddGroup()">＋ グループ追加</button>
+          <button class="btn sm" onclick="openAddGroup()">+ Add Group</button>
         </div>
         <table class="data-table">
           <thead><tr><th>グループ名</th><th>色</th><th>説明</th><th>操作</th></tr></thead>
@@ -524,7 +569,7 @@ select {
       <div class="section-card">
         <div class="section-card-header">
           <h3>タスク一覧</h3>
-          <button class="btn sm" onclick="openAddTask()">＋ タスク追加</button>
+          <button class="btn sm" onclick="openAddTask()">+ Add Task</button>
         </div>
         <table class="data-table" id="task-table">
           <thead>
@@ -548,7 +593,7 @@ select {
       <div class="section-card">
         <div class="section-card-header">
           <h3>担当者一覧</h3>
-          <button class="btn sm" onclick="openAddMember()">＋ メンバー追加</button>
+          <button class="btn sm" onclick="openAddMember()">+ Add Member</button>
         </div>
         <table class="data-table">
           <thead><tr><th>名前</th><th>メール</th><th>Teams ID</th><th>役割</th><th>操作</th></tr></thead>
@@ -561,11 +606,34 @@ select {
         <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
           <input type="date" id="hol-date" style="width:160px">
           <input type="text" id="hol-name" placeholder="祝日名" style="width:180px">
-          <button class="btn sm" onclick="addHoliday()">＋ 追加</button>
+          <button class="btn sm" onclick="addHoliday()">+ Add</button>
         </div>
         <table class="data-table">
           <thead><tr><th>日付</th><th>祝日名</th><th>操作</th></tr></thead>
           <tbody id="holiday-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ══ MILESTONE ══ -->
+  <div id="milestone-panel" class="panel">
+    <div class="scroll-panel">
+      <h2>マイルストーン管理</h2>
+      <div class="section-card">
+        <div class="section-card-header">
+          <h3>マイルストーン一覧</h3>
+          <button class="btn sm" onclick="openAddMilestone()">+ Add</button>
+        </div>
+        <p style="font-size:12px;color:var(--text3);margin-bottom:12px">
+          ガントチャート上に今日ラインと同様の縦線とラベルで表示されます。
+        </p>
+        <table class="data-table">
+          <thead>
+            <tr><th>アイコン</th><th>マイルストーン名</th><th>日付</th><th>色</th><th>操作</th></tr>
+          </thead>
+          <tbody id="milestone-tbody"></tbody>
         </table>
       </div>
     </div>
@@ -672,12 +740,22 @@ let DATA = {
     { id:'g3', name:'テストフェーズ', color:'#f59e0b', desc:'' },
   ],
   tasks: [
-    { id:'t1', gid:'g1', name:'システム定義',           owner:'相阪泰伸', color:'#018FC1', start:'2025-01-06', end:'2025-01-17', pct:100, status:'done',  deps:[] },
-    
+    { id:'t1', gid:'g1', name:'要件定義',           owners:['田中 太郎'], color:'#018FC1', start:'2025-01-06', end:'2025-01-17', pct:100, status:'done',  deps:[] },
+    { id:'t2', gid:'g1', name:'システム設計',       owners:['山田 花子'], color:'#01a8e0', start:'2025-01-13', end:'2025-01-31', pct:80,  status:'doing', deps:[{tid:'t1',lag:0}] },
+    { id:'t3', gid:'g2', name:'フロントエンド実装', owners:['鈴木 一郎'], color:'#22c55e', start:'2025-02-03', end:'2025-02-28', pct:30,  status:'doing', deps:[{tid:'t2',lag:1}] },
+    { id:'t4', gid:'g2', name:'バックエンド実装',   owners:['佐藤 次郎'], color:'#16a34a', start:'2025-02-03', end:'2025-03-14', pct:20,  status:'doing', deps:[{tid:'t2',lag:1}] },
+    { id:'t5', gid:'g3', name:'単体テスト',         owners:['田中 太郎'], color:'#f59e0b', start:'2025-03-03', end:'2025-03-14', pct:0,   status:'todo',  deps:[{tid:'t3',lag:2}] },
+    { id:'t6', gid:'g3', name:'結合テスト',         owners:['山田 花子'], color:'#d97706', start:'2025-03-17', end:'2025-03-28', pct:0,   status:'todo',  deps:[{tid:'t5',lag:0}] },
   ],
   members: [
-    { id:'m1', name:'相阪泰伸', email:'aisaka.taishin460@mail.kyutech.jp', teamsId:'@aisaka', role:'開発' },
-
+    { id:'m1', name:'田中 太郎', email:'tanaka@example.com', teamsId:'@tanaka', role:'開発' },
+    { id:'m2', name:'山田 花子', email:'yamada@example.com', teamsId:'@yamada', role:'デザイン' },
+    { id:'m3', name:'鈴木 一郎', email:'suzuki@example.com', teamsId:'@suzuki', role:'フロントエンド' },
+    { id:'m4', name:'佐藤 次郎', email:'sato@example.com',   teamsId:'@sato',   role:'バックエンド' },
+  ],
+  milestones: [
+    { id:'ms1', name:'中間レビュー', date:'2025-02-14', color:'#a855f7', icon:'🎯' },
+    { id:'ms2', name:'リリース',     date:'2025-03-31', color:'#ef4444', icon:'🚀' },
   ],
   holidays: [
     {date:'2025-01-01',name:'元日'},{date:'2025-01-13',name:'成人の日'},
@@ -749,6 +827,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     if (tab.dataset.panel === 'gantt-panel')   renderGantt();
     if (tab.dataset.panel === 'task-panel')    { renderGroupTable(); renderTaskTable(); }
     if (tab.dataset.panel === 'members-panel') { renderMemberTable(); renderHolidayTable(); }
+    if (tab.dataset.panel === 'milestone-panel') { renderMilestoneTable(); }
   });
 });
 
@@ -875,7 +954,7 @@ function renderRows() {
           <div class="dot" style="background:${task.color}"></div>
           <span class="name">${esc(task.name)}</span>
         </div>
-        <div class="lc-owner" title="${esc(task.owner)}">${esc(task.owner)}</div>
+        <div class="lc-owner">${renderOwnerTags(task.owners||[task.owner]||[])}</div>
       `;
       tlRow.querySelector('.lc-task').addEventListener('dblclick', () => openEditTask(task.id));
       leftCol.appendChild(tlRow);
@@ -934,6 +1013,9 @@ function renderRows() {
 
   // Draw dependency arrows
   drawDeps(rowMap);
+
+  // Draw milestone lines
+  drawMilestones(rowIndex);
 
   // Total width
   const totalW = viewDays * dayW;
@@ -1077,7 +1159,7 @@ function showTip(e, task) {
   const tip = $('tip');
   $('tip-name').textContent   = task.name;
   $('tip-dates').textContent  = `📅 ${task.start} → ${task.end}`;
-  $('tip-owner').textContent  = `👤 ${task.owner}`;
+  $('tip-owner').textContent  = `👤 ${(task.owners||[task.owner]||[]).join(', ')}`;
   const sl = {done:'✅ 完了',doing:'🔵 進行中',todo:'⬜ 未着手',delayed:'🔴 遅延'};
   $('tip-status').textContent = `${sl[task.status]||task.status}  ${task.pct}%`;
   tip.style.display = 'block';
@@ -1161,7 +1243,7 @@ function openAddTask() {
   openModal('タスク追加', `
     <div class="form-row"><label>グループ *</label><select id="f-gid">${groupOpts()}</select></div>
     <div class="form-row"><label>タスク名 *</label><input type="text" id="f-name" placeholder="タスク名を入力"></div>
-    <div class="form-row"><label>担当者</label><select id="f-owner">${memberOpts()}</select></div>
+    <div class="form-row"><label>担当者</label>${ownerChecklist([])}</div>
     <div class="form-row"><label>開始日 *</label><input type="date" id="f-start" value="${today}"></div>
     <div class="form-row"><label>終了日 *</label><input type="date" id="f-end" value="${weekLater}"></div>
     <div class="form-row"><label>色</label>${colorPicker('f-color','#018FC1')}</div>
@@ -1185,7 +1267,7 @@ function openEditTask(id) {
   openModal('タスク編集: '+t.name, `
     <div class="form-row"><label>グループ *</label><select id="f-gid">${groupOpts(t.gid)}</select></div>
     <div class="form-row"><label>タスク名 *</label><input type="text" id="f-name" value="${esc(t.name)}"></div>
-    <div class="form-row"><label>担当者</label><select id="f-owner">${memberOpts(t.owner)}</select></div>
+    <div class="form-row"><label>担当者</label>${ownerChecklist(t.owners||[t.owner].filter(Boolean))}</div>
     <div class="form-row"><label>開始日 *</label><input type="date" id="f-start" value="${t.start}"></div>
     <div class="form-row"><label>終了日 *</label><input type="date" id="f-end" value="${t.end}"></div>
     <div class="form-row"><label>色</label>${colorPicker('f-color', t.color)}</div>
@@ -1266,13 +1348,30 @@ function handleModalOk() {
     const depLag = gn('f-dep-lag');
     const deps   = depTid ? [{tid:depTid, lag:depLag}] : [];
     const pct    = Math.min(100, Math.max(0, gn('f-pct')));
+    // 複数担当者
+    const owners = Array.from(document.querySelectorAll('.owner-cb:checked')).map(cb=>cb.value);
 
     if (modalMode === 'add-task') {
-      DATA.tasks.push({ id:uid(), gid, name, owner:gv('f-owner'), color,
+      DATA.tasks.push({ id:uid(), gid, name, owners, color,
         start, end, pct, status:gv('f-status')||'todo', deps });
     } else {
       const t = getTask(modalId);
-      Object.assign(t, { gid, name, owner:gv('f-owner'), color, start, end, pct, status:gv('f-status'), deps });
+      Object.assign(t, { gid, name, owners, color, start, end, pct, status:gv('f-status'), deps });
+    }
+  }
+  else if (modalMode === 'add-milestone' || modalMode === 'edit-milestone') {
+    const name = gv('f-name');
+    const date = gv('f-date');
+    if (!name) { toast('名前を入力してください','err'); return; }
+    if (!date) { toast('日付を入力してください','err'); return; }
+    const color = document.getElementById('f-color')?.value || '#a855f7';
+    const icon  = gv('f-icon') || '🎯';
+    if (modalMode === 'add-milestone') {
+      DATA.milestones = DATA.milestones || [];
+      DATA.milestones.push({ id:uid(), name, date, color, icon });
+    } else {
+      const ms = DATA.milestones.find(x=>x.id===modalId);
+      if (ms) Object.assign(ms, { name, date, color, icon });
     }
   }
   else if (modalMode === 'add-group' || modalMode === 'edit-group') {
@@ -1321,6 +1420,151 @@ function deleteMember(id) {
   setDirty(); closeModal(); renderMemberTable();
 }
 
+
+// ══════════════════════════════════════════════════════
+//  OWNER HELPERS
+// ══════════════════════════════════════════════════════
+function getOwners(task) {
+  // owners配列があればそれを、なければowner文字列を配列化
+  if (task.owners && task.owners.length) return task.owners;
+  if (task.owner) return [task.owner];
+  return [];
+}
+
+function renderOwnerTags(owners) {
+  if (!owners || !owners.length) return '<span style="color:var(--text3);font-size:11px">─</span>';
+  return owners.map(o =>
+    `<span class="owner-tag">${esc(o)}</span>`
+  ).join('');
+}
+
+function ownerChecklist(selectedOwners) {
+  selectedOwners = selectedOwners || [];
+  if (!DATA.members.length) {
+    return '<p style="font-size:12px;color:var(--text3)">メンバータブで担当者を先に登録してください</p>';
+  }
+  return '<div class="owner-checklist">' +
+    DATA.members.map(m =>
+      `<label class="owner-check-item">
+        <input type="checkbox" class="owner-cb" value="${esc(m.name)}"
+          ${selectedOwners.includes(m.name)?'checked':''}>
+        <span>${esc(m.name)}</span>
+        <span style="font-size:10px;color:var(--text3);margin-left:4px">${esc(m.role||'')}</span>
+      </label>`
+    ).join('') +
+  '</div>';
+}
+
+// ══════════════════════════════════════════════════════
+//  MILESTONE FUNCTIONS
+// ══════════════════════════════════════════════════════
+function drawMilestones(totalRows) {
+  const rightCol = $('right-col');
+  // 既存マイルストーンラインを削除
+  rightCol.querySelectorAll('.ms-line').forEach(e => e.remove());
+
+  const ms = DATA.milestones || [];
+  const totalH = totalRows * 38;
+
+  ms.forEach(m => {
+    const d = parseDate(m.date);
+    const i = dayIdx(d);
+    if (i < 0 || i >= viewDays) return;
+
+    const line = document.createElement('div');
+    line.className = 'ms-line';
+    line.style.left = (i * dayW + dayW/2) + 'px';
+    line.style.height = totalH + 'px';
+    line.style.background = m.color;
+    line.style.boxShadow = `0 0 6px ${m.color}60`;
+    line.title = m.name + ' : ' + m.date;
+
+    // ダイヤモンドマーカー
+    const diamond = document.createElement('div');
+    diamond.className = 'ms-diamond';
+    diamond.style.background = m.color;
+    line.appendChild(diamond);
+
+    // ラベル
+    const label = document.createElement('div');
+    label.className = 'ms-label';
+    label.style.background = m.color;
+    label.textContent = (m.icon||'🎯') + ' ' + m.name;
+    line.appendChild(label);
+
+    rightCol.appendChild(line);
+  });
+}
+
+function renderMilestoneTable() {
+  DATA.milestones = DATA.milestones || [];
+  $('milestone-tbody').innerHTML = DATA.milestones.length === 0
+    ? '<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">マイルストーンがありません</td></tr>'
+    : DATA.milestones.map(m => `
+    <tr>
+      <td style="font-size:18px;text-align:center">${m.icon||'🎯'}</td>
+      <td style="font-weight:600">${esc(m.name)}</td>
+      <td style="font-family:var(--mono)">${m.date}</td>
+      <td><span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:${m.color};vertical-align:middle"></span></td>
+      <td><button class="btn sm" onclick="openEditMilestone('${m.id}')">編集</button></td>
+    </tr>
+  `).join('');
+}
+
+function openAddMilestone() {
+  const today = isoDate(new Date());
+  openModal('マイルストーン追加', `
+    <div class="form-row"><label>アイコン</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${['🎯','🚀','⭐','📌','🔔','✅','🏁','💡','🔖','📅'].map(ic=>
+          `<span onclick="document.getElementById('f-icon').value='${ic}';
+            this.parentNode.querySelectorAll('.ic-btn').forEach(x=>x.classList.remove('sel'));
+            this.classList.add('sel')"
+            class="ic-btn preset-dot sel" style="font-size:18px;width:32px;height:32px;border-radius:6px;
+            display:flex;align-items:center;justify-content:center;background:var(--bg3);border:2px solid var(--border);cursor:pointer">${ic}</span>`
+        ).join('')}
+        <input type="hidden" id="f-icon" value="🎯">
+      </div>
+    </div>
+    <div class="form-row"><label>名前 *</label><input type="text" id="f-name" placeholder="例: 中間レビュー"></div>
+    <div class="form-row"><label>日付 *</label><input type="date" id="f-date" value="${today}"></div>
+    <div class="form-row"><label>色</label>${colorPicker('f-color','#a855f7')}</div>
+  `, 'add-milestone');
+}
+
+function openEditMilestone(id) {
+  DATA.milestones = DATA.milestones || [];
+  const m = DATA.milestones.find(x=>x.id===id);
+  if (!m) return;
+  openModal('マイルストーン編集: '+m.name, `
+    <div class="form-row"><label>アイコン</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${['🎯','🚀','⭐','📌','🔔','✅','🏁','💡','🔖','📅'].map(ic=>
+          `<span onclick="document.getElementById('f-icon').value='${ic}';
+            this.parentNode.querySelectorAll('.ic-btn').forEach(x=>x.classList.remove('sel'));
+            this.classList.add('sel')"
+            class="ic-btn preset-dot${ic===m.icon?' sel':''}"
+            style="font-size:18px;width:32px;height:32px;border-radius:6px;
+            display:flex;align-items:center;justify-content:center;background:var(--bg3);border:2px solid var(--border);cursor:pointer">${ic}</span>`
+        ).join('')}
+        <input type="hidden" id="f-icon" value="${esc(m.icon||'🎯')}">
+      </div>
+    </div>
+    <div class="form-row"><label>名前 *</label><input type="text" id="f-name" value="${esc(m.name)}"></div>
+    <div class="form-row"><label>日付 *</label><input type="date" id="f-date" value="${m.date}"></div>
+    <div class="form-row"><label>色</label>${colorPicker('f-color', m.color)}</div>
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+      <button class="btn danger" onclick="deleteMilestone('${id}')">🗑 削除</button>
+    </div>
+  `, 'edit-milestone', id);
+}
+
+function deleteMilestone(id) {
+  if (!confirm('このマイルストーンを削除しますか？')) return;
+  DATA.milestones = (DATA.milestones||[]).filter(m=>m.id!==id);
+  setDirty(); closeModal(); renderMilestoneTable(); renderGantt();
+}
+
 // ══════════════════════════════════════════════════════
 //  TABLE RENDERS
 // ══════════════════════════════════════════════════════
@@ -1349,7 +1593,7 @@ function renderTaskTable() {
         <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${t.color};margin-right:5px;vertical-align:middle"></span>
         ${esc(t.name)}
       </td>
-      <td>${esc(t.owner||'─')}</td>
+      <td><div class='owner-tags'>${renderOwnerTags(getOwners(t))}</div></td>
       <td><input type="date" value="${t.start}" style="width:130px"
            onchange="getTask('${t.id}').start=this.value;setDirty();renderGantt()"></td>
       <td><input type="date" value="${t.end}" style="width:130px"
@@ -1410,6 +1654,7 @@ function renderAll() {
   renderTaskTable();
   renderMemberTable();
   renderHolidayTable();
+  if ($("milestone-tbody")) renderMilestoneTable();
 }
 
 // ══════════════════════════════════════════════════════

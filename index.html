@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="ja">
 <head>
@@ -432,7 +433,7 @@ select {
       <input type="file" id="logo-input" accept="image/*" onchange="handleLogoUpload(this)">
       <div id="logo-hint">ロゴをアップロード</div>
     </div>
-    <div id="app-title"> <span>gantt-app-ta</span></div>
+    <div id="app-title">📊 <span>ガントチャート</span></div>
   </div>
 
   <div class="period-nav">
@@ -442,16 +443,16 @@ select {
   </div>
   <button class="btn" onclick="jumpToday()">今日</button>
   <button class="btn" onclick="openAddTask()">＋ タスク</button>
-  <button class="btn primary" onclick="saveToGitHub()"> 保存 &amp; 通知</button>
+  <button class="btn primary" onclick="saveToGitHub()">💾 保存 &amp; 通知</button>
   <span id="save-status">起動中...</span>
 </div>
 
 <!-- Tabs -->
 <div id="tabs">
-  <button class="tab active" data-panel="gantt-panel"> ganttchart</button>
-  <button class="tab"        data-panel="task-panel"> task</button>
-  <button class="tab"        data-panel="members-panel"> member</button>
-  <button class="tab"        data-panel="settings-panel"> setting</button>
+  <button class="tab active" data-panel="gantt-panel">📅 ガントチャート</button>
+  <button class="tab"        data-panel="task-panel">✏️ タスク編集</button>
+  <button class="tab"        data-panel="members-panel">👥 メンバー</button>
+  <button class="tab"        data-panel="settings-panel">⚙️ 設定</button>
 </div>
 
 <!-- Main -->
@@ -656,6 +657,7 @@ select {
 // ══════════════════════════════════════════════════════
 //  DATA
 // ══════════════════════════════════════════════════════
+// __GANTT_DATA_START__
 let DATA = {
   settings: { repo:'', token:'', branch:'main', webhook:'', r1:3, r2:1 },
   groups: [
@@ -688,6 +690,10 @@ let DATA = {
     {date:'2025-11-03',name:'文化の日'},{date:'2025-11-23',name:'勤労感謝の日'},
   ],
 };
+// __GANTT_DATA_END__
+
+// 閲覧専用モードフラグ（GitHub Actionsが書き換える）
+const READONLY = false; // __READONLY_FLAG__
 
 // ══════════════════════════════════════════════════════
 //  VIEW STATE
@@ -1695,14 +1701,64 @@ document.addEventListener('DOMContentLoaded', () => {
 });
 
 // ══════════════════════════════════════════════════════
+//  READONLY MODE
+// ══════════════════════════════════════════════════════
+function applyReadonlyMode() {
+  if (!READONLY) return;
+
+  // タイトルバナーを追加
+  const banner = document.createElement('div');
+  banner.id = 'readonly-banner';
+  banner.innerHTML = '👁 閲覧専用モード — 編集する場合は<a href="index.html" style="color:#fff;margin-left:4px;font-weight:700">編集版を開く</a>';
+  banner.style.cssText = [
+    'position:fixed','bottom:0','left:0','right:0','z-index:9999',
+    'background:#2563eb','color:#fff','text-align:center',
+    'font-size:12px','padding:6px','font-family:var(--font)',
+    'box-shadow:0 -2px 8px rgba(0,0,0,0.15)'
+  ].join(';');
+  document.body.appendChild(banner);
+
+  // 編集系ボタン・タブを非表示
+  const hideIds = ['save-status'];
+  hideIds.forEach(id => { const el=$(id); if(el) el.style.display='none'; });
+
+  // 保存・タスク追加ボタンを非表示
+  document.querySelectorAll('.btn.primary, .btn[onclick*="openAddTask"], .btn[onclick*="saveToGitHub"]')
+    .forEach(el => el.style.display='none');
+
+  // 編集タブを非表示（ガントチャートタブのみ残す）
+  document.querySelectorAll('.tab[data-panel="task-panel"], .tab[data-panel="members-panel"], .tab[data-panel="settings-panel"]')
+    .forEach(el => el.style.display='none');
+
+  // ロゴのアップロード入力を無効化
+  const logoInput = $('logo-input');
+  if (logoInput) logoInput.disabled = true;
+  const logoWrap = $('logo-wrap');
+  if (logoWrap) { logoWrap.title = ''; logoWrap.style.cursor='default'; }
+  const logoHint = $('logo-hint');
+  if (logoHint) logoHint.style.display = 'none';
+
+  // ドラッグ・リサイズ・ダブルクリック編集を無効化
+  document.addEventListener('mousedown', e => {
+    if (e.target.closest('.task-bar') || e.target.closest('.rhandle')) {
+      e.stopPropagation();
+    }
+  }, true);
+}
+
+// ══════════════════════════════════════════════════════
 //  INIT
 // ══════════════════════════════════════════════════════
 document.addEventListener('DOMContentLoaded', async () => {
   const now = new Date(); now.setHours(0,0,0,0);
   viewStart = addDays(now, -7);
 
-  loadSettings();
-  loadLogo();
+  // 閲覧専用モードの場合はGitHubロードをスキップ（データ埋め込み済み）
+  if (!READONLY) {
+    loadSettings();
+    loadLogo();
+  }
+
   renderAll();
   setDirty(false);
 
@@ -1712,11 +1768,14 @@ document.addEventListener('DOMContentLoaded', async () => {
     body.scrollLeft = Math.max(0, 7*dayW - 60);
   }, 100);
 
-  await loadFromGitHub();
+  if (!READONLY) {
+    await loadFromGitHub();
+    window.addEventListener('beforeunload', e => {
+      if (isDirty) { e.preventDefault(); e.returnValue=''; }
+    });
+  }
 
-  window.addEventListener('beforeunload', e => {
-    if (isDirty) { e.preventDefault(); e.returnValue=''; }
-  });
+  applyReadonlyMode();
 });
 </script>
 </body>

@@ -1709,11 +1709,11 @@ function applyReadonlyMode() {
   // タイトルバナーを追加
   const banner = document.createElement('div');
   banner.id = 'readonly-banner';
-  banner.innerHTML = '👁 閲覧専用モード — 編集する場合は<a href="index.html" style="color:#fff;margin-left:4px;font-weight:700">編集版を開く</a>';
+  banner.innerHTML = '👁 閲覧専用モード &nbsp;|&nbsp; 編集する場合は <a href="index.html" style="color:#fff;font-weight:700;text-decoration:underline">編集版（index.html）</a> を開いてください';
   banner.style.cssText = [
     'position:fixed','bottom:0','left:0','right:0','z-index:9999',
     'background:#018FC1','color:#fff','text-align:center',
-    'font-size:12px','padding:6px','font-family:var(--font)',
+    'font-size:12px','padding:7px','font-family:var(--font)',
     'box-shadow:0 -2px 8px rgba(0,0,0,0.15)'
   ].join(';');
   document.body.appendChild(banner);

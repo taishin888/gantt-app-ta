@@ -7,9 +7,13 @@ const data   = JSON.parse(fs.readFileSync('data/tasks.json', 'utf8'));
 const now    = new Date().toLocaleString('ja-JP', { timeZone: 'Asia/Tokyo' });
 const commit = (process.env.GITHUB_SHA || 'unknown').slice(0, 7);
 const repo   = process.env.GITHUB_REPOSITORY || '';
-const pages  = repo
+const base   = repo
   ? 'https://' + repo.split('/')[0] + '.github.io/' + repo.split('/')[1]
   : '';
+// 閲覧専用ページURL
+const viewerUrl = base ? base + '/viewer.html' : '';
+// 編集版ページURL
+const editorUrl = base ? base + '/index.html'  : '';
 
 // ── 集計 ──
 const total = data.tasks.length;
@@ -83,14 +87,22 @@ const cardBody = [
   }
 ].concat(mentionRows);
 
+// ── アクションボタン（閲覧専用のみ表示） ──
+const actions = [];
+if (viewerUrl) {
+  actions.push({
+    type: 'Action.OpenUrl',
+    title: '📋 ガントチャートを見る（閲覧専用）',
+    url: viewerUrl
+  });
+}
+
 const card = {
   type: 'AdaptiveCard',
   version: '1.4',
   msteams: { entities: mentionEntities },
   body: cardBody,
-  actions: pages
-    ? [{ type: 'Action.OpenUrl', title: 'ガントチャートを開く', url: pages }]
-    : []
+  actions: actions
 };
 
 const payload = JSON.stringify({
@@ -107,6 +119,8 @@ if (!webhook) {
   console.log('TEAMS_WEBHOOK not set. Skipping.');
   process.exit(0);
 }
+
+console.log('Sending to Teams... viewer:', viewerUrl);
 
 const u = new URL(webhook);
 const req = https.request({

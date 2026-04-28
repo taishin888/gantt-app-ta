@@ -90,7 +90,7 @@ const cardBody = [
 
 const repo  = process.env.GITHUB_REPOSITORY || '';
 const pages = repo
-  ? 'https://' + repo.split('/')[0] + '.github.io/' + repo.split('/')[1]
+  ? 'https://' + repo.split('/')[0] + '.github.io/' + repo.split('/')[1] + '/viewer.html'
   : '';
 
 const card = {

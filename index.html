@@ -584,8 +584,14 @@ select {
         </div>
         <div class="setting-row">
           <label>Personal Access Token</label>
-          <input type="text" id="cfg-token" placeholder="ghp_xxxx..." autocomplete="off">
+          <div style="flex:1;display:flex;gap:6px;align-items:center">
+            <input type="password" id="cfg-token" placeholder="ghp_xxxx... または github_pat_xxxx..."
+                   style="flex:1" autocomplete="off"
+                   oninput="validateToken(this)">
+            <button class="btn sm" onclick="toggleTokenVisible()" id="token-eye" title="表示/非表示">👁</button>
+          </div>
         </div>
+        <div id="token-hint" style="font-size:11px;padding:4px 0 0 200px;display:none"></div>
         <div class="setting-row">
           <label>ブランチ</label>
           <input type="text" id="cfg-branch" value="main" style="width:120px">
@@ -1415,6 +1421,33 @@ function renderAll() {
 // ══════════════════════════════════════════════════════
 //  SETTINGS
 // ══════════════════════════════════════════════════════
+function toggleTokenVisible() {
+  const input = $('cfg-token');
+  const btn   = $('token-eye');
+  if (input.type === 'password') {
+    input.type = 'text';
+    btn.textContent = '🙈';
+  } else {
+    input.type = 'password';
+    btn.textContent = '👁';
+  }
+}
+
+function validateToken(input) {
+  const hint = $('token-hint');
+  const v = input.value.trim();
+  if (!v) { hint.style.display = 'none'; return; }
+  if (v.startsWith('ghp_') || v.startsWith('github_pat_')) {
+    hint.style.display = 'block';
+    hint.style.color = 'var(--green)';
+    hint.textContent = '✅ トークン形式OK';
+  } else {
+    hint.style.display = 'block';
+    hint.style.color = 'var(--red)';
+    hint.textContent = '⚠ ghp_ または github_pat_ で始まるトークスを入力してください';
+  }
+}
+
 function saveSettings() {
   DATA.settings.repo    = $('cfg-repo').value.trim();
   DATA.settings.token   = $('cfg-token').value.trim();
@@ -1422,7 +1455,6 @@ function saveSettings() {
   DATA.settings.webhook = $('cfg-webhook').value.trim();
   DATA.settings.r1      = parseInt($('cfg-r1').value)||3;
   DATA.settings.r2      = parseInt($('cfg-r2').value)||1;
-  // Save settings only (without token to be slightly safer; user stores elsewhere if desired)
   const toSave = {...DATA.settings};
   localStorage.setItem('gantt-cfg', JSON.stringify(toSave));
   toast('設定を保存しました','ok');
@@ -1440,6 +1472,9 @@ function loadSettings() {
     $('cfg-webhook').value = cfg.webhook || '';
     $('cfg-r1').value      = cfg.r1 ?? 3;
     $('cfg-r2').value      = cfg.r2 ?? 1;
+    // 読み込み後にバリデーション表示
+    const tokenInput = $('cfg-token');
+    if (tokenInput && tokenInput.value) validateToken(tokenInput);
   } catch(e) {}
 }
 
@@ -1451,55 +1486,142 @@ async function testGH() {
     const r = await fetch(`https://api.github.com/repos/${repo}`,
       { headers:{ Authorization:`Bearer ${token}` } });
     if (r.ok) { const j=await r.json(); toast(`✅ 接続成功: ${j.full_name}`,'ok'); }
-    else toast('接続失敗: '+r.status,'err');
+    else if (r.status === 401) { showCredentialError(); }
+    else toast('接続失敗: ' + r.status,'err');
   } catch(e) { toast('接続エラー: '+e.message,'err'); }
 }
 
 // ══════════════════════════════════════════════════════
 //  GITHUB SAVE
 // ══════════════════════════════════════════════════════
+async function getLatestSha(repo, token, branch) {
+  const r = await fetch(
+    `https://api.github.com/repos/${repo}/contents/data/tasks.json?ref=${branch}&t=${Date.now()}`,
+    { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'Cache-Control': 'no-cache' } }
+  );
+  if (r.ok)             return (await r.json()).sha;
+  if (r.status === 401) throw new Error('401_CREDENTIALS');
+  if (r.status === 404) return '';
+  throw new Error('SHA取得失敗: ' + r.status);
+}
+
 async function saveToGitHub() {
   const { repo, token, branch } = DATA.settings;
-  if (!repo||!token) {
-    toast('設定タブでリポジトリとトークンを設定してください','err');
+  if (!repo || !token) {
+    toast('設定タブでリポジトリとトークンを設定してください', 'err');
     document.querySelector('[data-panel="settings-panel"]').click();
     return;
   }
-  toast('GitHubに保存中...','info');
-  try {
-    // Exclude token from saved data
-    const saveData = { ...DATA, settings:{ ...DATA.settings, token:'' } };
-    const payload  = JSON.stringify(saveData, null, 2);
-    const content  = btoa(unescape(encodeURIComponent(payload)));
 
-    // Get existing SHA
-    let sha = '';
+  const trimmedToken = token.trim();
+  if (!trimmedToken.startsWith('ghp_') && !trimmedToken.startsWith('github_pat_')) {
+    toast('⚠ トークン形式が正しくありません（ghp_ または github_pat_ で始まるはずです）', 'err');
+    return;
+  }
+
+  const targetBranch = branch || 'main';
+  toast('GitHubに保存中...', 'info');
+
+  const MAX_RETRY = 3;
+  for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
     try {
-      const r = await fetch(
+      // ── 毎回最新SHAを取得 ──
+      const sha = await getLatestSha(repo, trimmedToken, targetBranch);
+
+      const saveData = { ...DATA, settings: { ...DATA.settings, token: '' } };
+      const payload  = JSON.stringify(saveData, null, 2);
+      const content  = btoa(unescape(encodeURIComponent(payload)));
+
+      const body = {
+        message: `ガントチャート更新 ${new Date().toLocaleString('ja-JP')}`,
+        content, branch: targetBranch
+      };
+      if (sha) body.sha = sha;
+
+      const pr = await fetch(
         `https://api.github.com/repos/${repo}/contents/data/tasks.json`,
-        { headers:{ Authorization:`Bearer ${token}`, Accept:'application/vnd.github+json' } }
+        { method: 'PUT', headers: { Authorization: `Bearer ${trimmedToken}`,
+            Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+          body: JSON.stringify(body) }
       );
-      if (r.ok) sha = (await r.json()).sha;
-    } catch(e) {}
 
-    const body = {
-      message: `ガントチャート更新 ${new Date().toLocaleString('ja-JP')}`,
-      content, branch
-    };
-    if (sha) body.sha = sha;
+      if (pr.ok) {
+        setDirty(false);
+        $('save-status').textContent = '✓ 保存済み ' + new Date().toLocaleTimeString('ja-JP');
+        toast('✅ GitHubに保存しました。Actions が自動でTeams通知を送信します。', 'ok');
+        return;
+      }
 
-    const pr = await fetch(
-      `https://api.github.com/repos/${repo}/contents/data/tasks.json`,
-      { method:'PUT', headers:{ Authorization:`Bearer ${token}`,
-        Accept:'application/vnd.github+json', 'Content-Type':'application/json' },
-        body: JSON.stringify(body) }
-    );
-    if (!pr.ok) throw new Error('PUT失敗: '+pr.status+' '+await pr.text());
+      const errText = await pr.text();
+      if (pr.status === 409) {
+        console.warn(`[save] 409 conflict (attempt ${attempt}/${MAX_RETRY})`);
+        if (attempt < MAX_RETRY) {
+          toast(`⏳ 競合を検出。再試行中... (${attempt}/${MAX_RETRY})`, 'info');
+          await new Promise(res => setTimeout(res, 1000 * attempt));
+          continue;
+        }
+        throw new Error('409_CONFLICT');
+      }
+      if (pr.status === 401) throw new Error('401_CREDENTIALS');
+      if (pr.status === 403) throw new Error('403_FORBIDDEN');
+      if (pr.status === 404) throw new Error('404_NOTFOUND');
+      throw new Error(`PUT失敗: ${pr.status} ${errText}`);
 
-    setDirty(false);
-    $('save-status').textContent = '✓ 保存済み '+new Date().toLocaleTimeString('ja-JP');
-    toast('✅ GitHubに保存しました。Actions がTeams通知を自動送信します。','ok');
-  } catch(e) { toast('保存エラー: '+e.message,'err'); }
+    } catch(e) {
+      if (e.message === '401_CREDENTIALS') { showCredentialError(); return; }
+      if (e.message === '403_FORBIDDEN') { toast('❌ 403 権限エラー: トークンに repo スコープがありません', 'err'); return; }
+      if (e.message === '404_NOTFOUND')  { toast('❌ 404 リポジトリが見つかりません', 'err'); return; }
+      if (e.message === '409_CONFLICT')  { toast('❌ 競合解消できませんでした。ページ再読み込み後に再試行してください', 'err'); return; }
+      if (attempt < MAX_RETRY) { await new Promise(res => setTimeout(res, 1000 * attempt)); continue; }
+      toast('❌ 保存エラー: ' + e.message, 'err');
+      return;
+    }
+  }
+}
+
+function showCredentialError() {
+  // モーダルで詳細な解決策を表示
+  openModal('🔑 認証エラー（401）— 解決方法', `
+    <p style="font-size:13px;color:var(--text2);margin-bottom:16px">
+      GitHubへの認証に失敗しました。以下を順番に確認してください。
+    </p>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="background:var(--bg3);border-radius:8px;padding:14px">
+        <div style="font-weight:700;margin-bottom:6px">① トークンの有効期限切れ（最多原因）</div>
+        <div style="font-size:12px;color:var(--text2)">
+          GitHubの <strong>Settings → Developer settings → Personal access tokens</strong> を開き、
+          使用しているトークンが <span style="color:var(--red)">Expired</span> になっていないか確認。
+          期限切れなら「Regenerate token」または新規作成してください。
+        </div>
+      </div>
+      <div style="background:var(--bg3);border-radius:8px;padding:14px">
+        <div style="font-weight:700;margin-bottom:6px">② トークンのスコープ不足</div>
+        <div style="font-size:12px;color:var(--text2)">
+          トークン作成時に <code style="background:var(--bg2);padding:2px 6px;border-radius:4px">repo</code>
+          にチェックが入っているか確認してください（Publicリポジトリでも <code>repo</code> が必要です）。
+        </div>
+      </div>
+      <div style="background:var(--bg3);border-radius:8px;padding:14px">
+        <div style="font-weight:700;margin-bottom:6px">③ 設定タブのトークンを再入力</div>
+        <div style="font-size:12px;color:var(--text2)">
+          新しいトークン（<code>ghp_</code> または <code>github_pat_</code> で始まる）をコピーし、
+          設定タブの「Personal Access Token」欄に貼り付けて「設定保存」をクリック。
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:14px;padding:10px;background:rgba(1,143,193,0.08);border-radius:8px;border-left:3px solid var(--accent)">
+      <div style="font-size:12px;color:var(--text2)">
+        💡 <strong>Fine-grained token を使っている場合</strong>：対象リポジトリへの
+        <code>Contents: Read and write</code> 権限が必要です。
+      </div>
+    </div>
+  `, 'error-info');
+  // モーダルのOKボタンを「設定タブへ」に変える
+  $('modal-ok').textContent = '⚙️ 設定タブへ';
+  $('modal-ok').onclick = () => {
+    closeModal();
+    document.querySelector('[data-panel="settings-panel"]').click();
+  };
 }
 
 async function loadFromGitHub() {

@@ -659,41 +659,129 @@ select {
 // ══════════════════════════════════════════════════════
 // __GANTT_DATA_START__
 let DATA = {
-  settings: { repo:'', token:'', branch:'main', webhook:'', r1:3, r2:1 },
-  groups: [
-    { id:'g1', name:'設計フェーズ',   color:'#018FC1', desc:'' },
-    { id:'g2', name:'開発フェーズ',   color:'#22c55e', desc:'' },
-    { id:'g3', name:'テストフェーズ', color:'#f59e0b', desc:'' },
+  "settings": {
+    "repo": "taishin888/gantt-app-ta",
+    "token": "",
+    "branch": "main",
+    "webhook": "",
+    "r1": 3,
+    "r2": 1,
+    "ghToken": ""
+  },
+  "groups": [
+    {
+      "id": "g1",
+      "name": "設計フェーズ",
+      "color": "#3b82f6",
+      "desc": ""
+    },
+    {
+      "id": "g2",
+      "name": "開発フェーズ",
+      "color": "#22c55e",
+      "desc": ""
+    },
+    {
+      "id": "g3",
+      "name": "テストフェーズ",
+      "color": "#f59e0b",
+      "desc": ""
+    }
   ],
-  tasks: [
-    { id:'t1', gid:'g1', name:'要件定義',           owner:'田中 太郎', color:'#018FC1', start:'2025-01-06', end:'2025-01-17', pct:100, status:'done',  deps:[] },
-    { id:'t2', gid:'g1', name:'システム設計',       owner:'山田 花子', color:'#01a8e0', start:'2025-01-13', end:'2025-01-31', pct:80,  status:'doing', deps:[{tid:'t1',lag:0}] },
-    { id:'t3', gid:'g2', name:'フロントエンド実装', owner:'鈴木 一郎', color:'#22c55e', start:'2025-02-03', end:'2025-02-28', pct:30,  status:'doing', deps:[{tid:'t2',lag:1}] },
-    { id:'t4', gid:'g2', name:'バックエンド実装',   owner:'佐藤 次郎', color:'#16a34a', start:'2025-02-03', end:'2025-03-14', pct:20,  status:'doing', deps:[{tid:'t2',lag:1}] },
-    { id:'t5', gid:'g3', name:'単体テスト',         owner:'田中 太郎', color:'#f59e0b', start:'2025-03-03', end:'2025-03-14', pct:0,   status:'todo',  deps:[{tid:'t3',lag:2}] },
-    { id:'t6', gid:'g3', name:'結合テスト',         owner:'山田 花子', color:'#d97706', start:'2025-03-17', end:'2025-03-28', pct:0,   status:'todo',  deps:[{tid:'t5',lag:0}] },
+  "tasks": [
+    {
+      "id": "t5",
+      "gid": "g1",
+      "name": "モーター選定",
+      "owner": "相阪泰伸",
+      "color": "#3b82f6",
+      "start": "2026-04-28",
+      "end": "2026-05-01",
+      "pct": 0,
+      "status": "todo",
+      "deps": []
+    }
   ],
-  members: [
-    { id:'m1', name:'田中 太郎', email:'tanaka@example.com', teamsId:'@tanaka', role:'開発' },
-    { id:'m2', name:'山田 花子', email:'yamada@example.com', teamsId:'@yamada', role:'デザイン' },
-    { id:'m3', name:'鈴木 一郎', email:'suzuki@example.com', teamsId:'@suzuki', role:'フロントエンド' },
-    { id:'m4', name:'佐藤 次郎', email:'sato@example.com',   teamsId:'@sato',   role:'バックエンド' },
+  "members": [
+    {
+      "id": "m4",
+      "name": "相阪泰伸",
+      "email": "aisaka.taishin460@mail.kyutech.jp",
+      "teamsId": "@aisaka",
+      "role": "開発"
+    }
   ],
-  holidays: [
-    {date:'2025-01-01',name:'元日'},{date:'2025-01-13',name:'成人の日'},
-    {date:'2025-02-11',name:'建国記念日'},{date:'2025-02-23',name:'天皇誕生日'},
-    {date:'2025-03-20',name:'春分の日'},{date:'2025-04-29',name:'昭和の日'},
-    {date:'2025-05-03',name:'憲法記念日'},{date:'2025-05-04',name:'みどりの日'},
-    {date:'2025-05-05',name:'こどもの日'},{date:'2025-07-21',name:'海の日'},
-    {date:'2025-08-11',name:'山の日'},{date:'2025-09-15',name:'敬老の日'},
-    {date:'2025-09-23',name:'秋分の日'},{date:'2025-10-13',name:'スポーツの日'},
-    {date:'2025-11-03',name:'文化の日'},{date:'2025-11-23',name:'勤労感謝の日'},
-  ],
+  "holidays": [
+    {
+      "date": "2025-01-01",
+      "name": "元日"
+    },
+    {
+      "date": "2025-01-13",
+      "name": "成人の日"
+    },
+    {
+      "date": "2025-02-11",
+      "name": "建国記念日"
+    },
+    {
+      "date": "2025-02-23",
+      "name": "天皇誕生日"
+    },
+    {
+      "date": "2025-03-20",
+      "name": "春分の日"
+    },
+    {
+      "date": "2025-04-29",
+      "name": "昭和の日"
+    },
+    {
+      "date": "2025-05-03",
+      "name": "憲法記念日"
+    },
+    {
+      "date": "2025-05-04",
+      "name": "みどりの日"
+    },
+    {
+      "date": "2025-05-05",
+      "name": "こどもの日"
+    },
+    {
+      "date": "2025-07-21",
+      "name": "海の日"
+    },
+    {
+      "date": "2025-08-11",
+      "name": "山の日"
+    },
+    {
+      "date": "2025-09-15",
+      "name": "敬老の日"
+    },
+    {
+      "date": "2025-09-23",
+      "name": "秋分の日"
+    },
+    {
+      "date": "2025-10-13",
+      "name": "スポーツの日"
+    },
+    {
+      "date": "2025-11-03",
+      "name": "文化の日"
+    },
+    {
+      "date": "2025-11-23",
+      "name": "勤労感謝の日"
+    }
+  ]
 };
 // __GANTT_DATA_END__
 
 // 閲覧専用モードフラグ（GitHub Actionsが書き換える）
-const READONLY = false; // __READONLY_FLAG__
+const READONLY = true;  // __READONLY_FLAG__
 
 // ══════════════════════════════════════════════════════
 //  VIEW STATE

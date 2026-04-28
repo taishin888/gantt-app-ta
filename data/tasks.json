@@ -10,27 +10,39 @@
   "groups": [
     {
       "id": "g1",
-      "name": "設計",
-      "color": "#018fc1",
+      "name": "新人教育",
+      "color": "#14b8a6",
       "desc": ""
     },
     {
       "id": "g2",
+      "name": "設計",
+      "color": "#0164c1",
+      "desc": ""
+    },
+    {
+      "id": "g3",
       "name": "開発",
       "color": "#22c55e",
       "desc": ""
     },
     {
-      "id": "g3",
+      "id": "_doap08p",
       "name": "統合",
       "color": "#f59e0b",
+      "desc": ""
+    },
+    {
+      "id": "_51ctg41",
+      "name": "試験",
+      "color": "#ef4444",
       "desc": ""
     }
   ],
   "tasks": [
     {
       "id": "t5",
-      "gid": "g1",
+      "gid": "g2",
       "name": "モーター選定",
       "owner": "相阪泰伸",
       "color": "#018fc1",
@@ -42,12 +54,24 @@
     },
     {
       "id": "_0exqpqy",
-      "gid": "g1",
+      "gid": "g2",
       "name": "モーターハブ設計",
       "owner": "相阪泰伸",
       "color": "#018fc1",
       "start": "2026-04-28",
       "end": "2026-05-05",
+      "pct": 0,
+      "status": "todo",
+      "deps": []
+    },
+    {
+      "id": "_us4353x",
+      "gid": "g1",
+      "name": "スライド作成①",
+      "owner": "",
+      "color": "#14b8a6",
+      "start": "2026-04-28",
+      "end": "2026-05-12",
       "pct": 0,
       "status": "todo",
       "deps": []

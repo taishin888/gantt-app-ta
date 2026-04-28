@@ -51,6 +51,18 @@
       "pct": 0,
       "status": "todo",
       "deps": []
+    },
+    {
+      "id": "_3axua9a",
+      "gid": "g1",
+      "name": "部品選定",
+      "owner": "相阪泰伸",
+      "color": "#018fc1",
+      "start": "2026-04-28",
+      "end": "2026-05-05",
+      "pct": 0,
+      "status": "todo",
+      "deps": []
     }
   ],
   "members": [

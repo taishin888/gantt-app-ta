@@ -12,8 +12,6 @@ on:
 
 permissions:
   contents: write
-  pages: write
-  id-token: write
 
 jobs:
   notify-and-deploy:
@@ -21,19 +19,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0   # 全履歴取得（gh-pagesブランチ操作に必要）
 
-      - name: Debug file structure
+      - name: Debug
+        env:
+          TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
         run: |
           echo "=== root ==="
           ls -la
-          echo "=== .github/scripts ==="
+          echo "=== scripts ==="
           ls -la .github/scripts/
-          echo "=== data/tasks.json (head 10) ==="
-          head -10 data/tasks.json
-          echo "=== TEAMS_WEBHOOK set? ==="
-          if [ -z "$TEAMS_WEBHOOK" ]; then echo "NOT SET"; else echo "SET (length=${#TEAMS_WEBHOOK})"; fi
-        env:
-          TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
+          echo "=== TEAMS_WEBHOOK ==="
+          if [ -z "$TEAMS_WEBHOOK" ]; then echo "NOT SET"; else echo "SET (len=${#TEAMS_WEBHOOK})"; fi
 
       - name: Send Teams notification
         env:
@@ -45,14 +43,30 @@ jobs:
       - name: Build read-only site
         run: node .github/scripts/build-readonly.js
 
-      - name: Debug generated site
+      - name: Verify build output
         run: |
-          ls -la _site/
+          echo "=== _site contents ==="
+          ls -lh _site/
+          echo "=== viewer.html READONLY ==="
           grep 'const READONLY' _site/viewer.html
+          echo "=== index.html READONLY ==="
+          grep 'const READONLY' _site/index.html
 
-      - name: Deploy to GitHub Pages
-        uses: peaceiris/actions-gh-pages@v3
-        with:
-          github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./_site
-          keep_files: false
+      # ── gh-pages ブランチに直接 git push ──
+      - name: Deploy to gh-pages branch
+        run: |
+          cd _site
+
+          git init
+          git config user.name  "github-actions[bot]"
+          git config user.email "github-actions[bot]@users.noreply.github.com"
+
+          git add -A
+          git commit -m "Deploy: $(date '+%Y-%m-%d %H:%M:%S JST' --date='TZ=\"Asia/Tokyo\" now')"
+
+          git push --force \
+            "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" \
+            HEAD:gh-pages
+
+          echo "=== Deploy complete ==="
+          echo "URL: https://$(echo '${{ github.repository }}' | cut -d'/' -f1).github.io/$(echo '${{ github.repository }}' | cut -d'/' -f2)/viewer.html"

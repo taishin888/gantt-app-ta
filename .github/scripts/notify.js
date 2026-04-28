@@ -43,7 +43,8 @@ data.tasks
   .forEach(task => {
     const member = memberMap[task.owner] || {};
     const email  = member.email || null;
-    const name   = task.owner  || '未設定';
+    const owners = task.owners && task.owners.length ? task.owners : (task.owner ? [task.owner] : ['未設定']);
+            const name   = owners[0] || '未設定';
 
     if (email) {
       mentionEntities.push({
@@ -51,7 +52,19 @@ data.tasks
         text: '<at>' + name + '</at>',
         mentioned: { id: email, name: name }
       });
-      taskLines.push('<at>' + name + '</at>　' + task.name + '　期日: ' + task.end);
+      // 複数担当者のメンション
+              owners.forEach((ownerName, idx) => {
+                const ownerMember = memberMap[ownerName] || {};
+                const ownerEmail  = ownerMember.email || null;
+                if (ownerEmail && !mentionEntities.find(e=>e.mentioned.id===ownerEmail)) {
+                  mentionEntities.push({ type:'mention', text:'<at>'+ownerName+'</at>', mentioned:{id:ownerEmail,name:ownerName} });
+                }
+              });
+              const mentionStr = owners.map(o => {
+                const om = memberMap[o] || {};
+                return om.email ? '<at>'+o+'</at>' : '👤 '+o;
+              }).join(' ');
+              taskLines.push(mentionStr + '　' + task.name + '　期日: ' + task.end);
     } else {
       taskLines.push('👤 ' + name + '　' + task.name + '　期日: ' + task.end);
     }

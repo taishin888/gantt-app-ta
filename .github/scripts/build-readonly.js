@@ -1,66 +1,68 @@
 'use strict';
-const fs = require('fs');
+const fs   = require('fs');
 const path = require('path');
 
 // ── ファイル読み込み ──
+console.log('[build] Reading index.html ...');
 const html = fs.readFileSync('index.html', 'utf8');
-const data = JSON.parse(fs.readFileSync('data/tasks.json', 'utf8'));
 
-// トークンは閲覧専用HTMLに含めない（セキュリティ）
+console.log('[build] Reading data/tasks.json ...');
+const raw  = fs.readFileSync('data/tasks.json', 'utf8');
+const data = JSON.parse(raw);
+
+console.log('[build] tasks:', (data.tasks  || []).length,
+            '/ groups:', (data.groups || []).length,
+            '/ members:', (data.members || []).length);
+
+// settings が存在しない場合のデフォルト
+const orig = data.settings || {};
+
+// トークンを除去した安全なデータ（キー名は tasks.json に合わせる）
 const safeData = {
   ...data,
   settings: {
-    ...data.settings,
-    token: '',   // トークンを除去
-    repo:  data.settings.repo  || '',
-    branch: data.settings.branch || 'main',
+    ...orig,
+    token:   '',   // PAT を除去
+    ghToken: '',   // 旧キー名も念のため除去
   }
 };
 
 const dataJson = JSON.stringify(safeData, null, 2);
 
-// ── __GANTT_DATA_START__ ～ __GANTT_DATA_END__ を実データで置き換え ──
+// ── マーカー置換 ──
 const dataBlockRe = /\/\/ __GANTT_DATA_START__[\s\S]*?\/\/ __GANTT_DATA_END__/;
-const newDataBlock = `// __GANTT_DATA_START__
-let DATA = ${dataJson};
-// __GANTT_DATA_END__`;
 
 if (!dataBlockRe.test(html)) {
-  console.error('ERROR: __GANTT_DATA_START__ marker not found in index.html');
+  console.error('[build] ERROR: __GANTT_DATA_START__ marker not found in index.html');
+  console.error('[build] Make sure index.html contains the markers.');
   process.exit(1);
 }
 
-let out = html.replace(dataBlockRe, newDataBlock);
-
-// ── READONLY フラグを true に ──
-out = out.replace(
-  /const READONLY = false; \/\/ __READONLY_FLAG__/,
-  'const READONLY = true;  // __READONLY_FLAG__'
+let out = html.replace(
+  dataBlockRe,
+  '// __GANTT_DATA_START__\nlet DATA = ' + dataJson + ';\n// __GANTT_DATA_END__'
 );
 
-// ── 出力 ──
-const outPath = path.join('_site', 'index.html');
-fs.mkdirSync('_site', { recursive: true });
-fs.writeFileSync(outPath, out, 'utf8');
-
-// 他の必要ファイルもコピー（dataフォルダなど）
-// ※ .githubフォルダは除外
-function copyDir(src, dest, excludes = []) {
-  if (!fs.existsSync(dest)) fs.mkdirSync(dest, { recursive: true });
-  for (const entry of fs.readdirSync(src, { withFileTypes: true })) {
-    if (excludes.includes(entry.name)) continue;
-    const srcPath  = path.join(src, entry.name);
-    const destPath = path.join(dest, entry.name);
-    if (entry.isDirectory()) {
-      copyDir(srcPath, destPath, excludes);
-    } else {
-      fs.copyFileSync(srcPath, destPath);
-    }
-  }
+// ── READONLY フラグ ──
+if (out.includes('// __READONLY_FLAG__')) {
+  out = out.replace(
+    /const READONLY = false; \/\/ __READONLY_FLAG__/,
+    'const READONLY = true;  // __READONLY_FLAG__'
+  );
+  console.log('[build] READONLY flag set to true');
+} else {
+  console.warn('[build] WARNING: __READONLY_FLAG__ not found. Readonly mode may not work.');
 }
 
-// data フォルダをコピー（tasks.json を公開しても問題なし）
-copyDir('data', path.join('_site', 'data'));
+// ── 出力 ──
+fs.mkdirSync('_site', { recursive: true });
+const outPath = path.join('_site', 'index.html');
+fs.writeFileSync(outPath, out, 'utf8');
+console.log('[build] Generated:', outPath, '(' + out.length + ' bytes)');
 
-console.log('Generated: ' + outPath);
-console.log('Data embedded: ' + safeData.tasks.length + ' tasks, ' + safeData.groups.length + ' groups');
+// data フォルダをコピー
+fs.mkdirSync(path.join('_site', 'data'), { recursive: true });
+for (const f of fs.readdirSync('data')) {
+  fs.copyFileSync(path.join('data', f), path.join('_site', 'data', f));
+}
+console.log('[build] Done.');

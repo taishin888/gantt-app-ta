@@ -19,6 +19,7 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      # ── Teams に通知 ──
       - name: Send Teams notification
         env:
           TEAMS_WEBHOOK:     ${{ secrets.TEAMS_WEBHOOK }}
@@ -26,9 +27,14 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node .github/scripts/notify.js
 
+      # ── 閲覧専用HTMLをビルド（データ埋め込み済み） ──
+      - name: Build read-only site
+        run: node .github/scripts/build-readonly.js
+
+      # ── GitHub Pages にデプロイ ──
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3
         with:
           github_token: ${{ secrets.GITHUB_TOKEN }}
-          publish_dir: ./
-          exclude_assets: '.github,node_modules'
+          publish_dir: ./_site
+          keep_files: false

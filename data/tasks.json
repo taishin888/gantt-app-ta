@@ -10,19 +10,19 @@
   "groups": [
     {
       "id": "g1",
-      "name": "設計フェーズ",
-      "color": "#3b82f6",
+      "name": "設計",
+      "color": "#018fc1",
       "desc": ""
     },
     {
       "id": "g2",
-      "name": "開発フェーズ",
+      "name": "開発",
       "color": "#22c55e",
       "desc": ""
     },
     {
       "id": "g3",
-      "name": "テストフェーズ",
+      "name": "統合",
       "color": "#f59e0b",
       "desc": ""
     }
@@ -32,46 +32,10 @@
       "id": "t5",
       "gid": "g1",
       "name": "モーター選定",
-      "owner": "相阪泰伸",
-      "color": "#3b82f6",
-      "start": "2026-04-28",
-      "end": "2026-05-01",
-      "pct": 0,
-      "status": "todo",
-      "deps": []
-    },
-    {
-      "id": "_68ik6xr",
-      "gid": "g1",
-      "name": "オイルシールパーツ設計",
-      "owner": "相阪泰伸",
-      "color": "#3b82f6",
-      "start": "2026-04-28",
-      "end": "2026-05-05",
-      "pct": 0,
-      "status": "todo",
-      "deps": []
-    },
-    {
-      "id": "_3axua9a",
-      "gid": "g1",
-      "name": "部品選定",
-      "owner": "相阪泰伸",
+      "owner": "",
       "color": "#018fc1",
       "start": "2026-04-28",
-      "end": "2026-05-05",
-      "pct": 0,
-      "status": "todo",
-      "deps": []
-    },
-    {
-      "id": "_5uqgta9",
-      "gid": "g1",
-      "name": "テスト",
-      "owner": "相阪泰伸",
-      "color": "#018fc1",
-      "start": "2026-04-28",
-      "end": "2026-05-05",
+      "end": "2026-04-30",
       "pct": 0,
       "status": "todo",
       "deps": []

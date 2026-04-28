@@ -6,6 +6,9 @@ on:
       - main
     paths:
       - 'data/tasks.json'
+      - 'index.html'
+      - '.github/scripts/**'
+  workflow_dispatch:   # ← 手動実行ボタンを追加
 
 permissions:
   contents: write
@@ -25,17 +28,21 @@ jobs:
           ls -la
           echo "=== .github/scripts ==="
           ls -la .github/scripts/
-          echo "=== data/ ==="
-          ls -la data/
-          echo "=== data/tasks.json (first 30 lines) ==="
-          head -30 data/tasks.json
+          echo "=== data/tasks.json (first 10 lines) ==="
+          head -10 data/tasks.json
 
       - name: Send Teams notification
         env:
           TEAMS_WEBHOOK:     ${{ secrets.TEAMS_WEBHOOK }}
           GITHUB_SHA:        ${{ github.sha }}
           GITHUB_REPOSITORY: ${{ github.repository }}
-        run: node .github/scripts/notify.js
+        # data/tasks.json 変更時のみ通知（index.html変更では通知しない）
+        run: |
+          if git diff --name-only HEAD~1 HEAD 2>/dev/null | grep -q 'data/tasks.json' || [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            node .github/scripts/notify.js
+          else
+            echo "index.html or scripts updated — skipping Teams notification"
+          fi
 
       - name: Build read-only site
         run: node .github/scripts/build-readonly.js
@@ -44,12 +51,12 @@ jobs:
         run: |
           echo "=== _site/ ==="
           ls -la _site/
-          echo "=== _site/index.html size ==="
-          wc -c _site/index.html
-          echo "=== READONLY flag check ==="
-          grep 'READONLY' _site/index.html | head -3
-          echo "=== DATA check ==="
-          grep -o '"name":"[^"]*"' _site/index.html | head -8
+          echo "=== viewer.html READONLY check ==="
+          grep 'const READONLY' _site/viewer.html
+          echo "=== index.html READONLY check ==="
+          grep 'const READONLY' _site/index.html
+          echo "=== viewer.html size ==="
+          wc -c _site/viewer.html
 
       - name: Deploy to GitHub Pages
         uses: peaceiris/actions-gh-pages@v3

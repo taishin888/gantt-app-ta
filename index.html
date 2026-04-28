@@ -17,12 +17,12 @@
   --text:    #1a202c;
   --text2:   #4a5568;
   --text3:   #8a95a3;
-  --accent:  #2563eb;
-  --accent2: #3b82f6;
+  --accent:  #018FC1;
+  --accent2: #01a8e0;
   --green:   #16a34a;
   --amber:   #d97706;
   --red:     #dc2626;
-  --today-bg: rgba(37,99,235,0.07);
+  --today-bg: rgba(1,143,193,0.08);
   --font: 'Noto Sans JP', sans-serif;
   --mono: 'JetBrains Mono', monospace;
   --radius: 8px;
@@ -288,7 +288,7 @@ body { font-family: var(--font); background: var(--bg); color: var(--text);
   color: var(--text2); cursor: pointer; font-size: 14px;
   display: flex; align-items: center; justify-content: center;
 }
-.period-nav button:hover { border-color: var(--accent); color: var(--accent); background: #eff6ff; }
+.period-nav button:hover { border-color: var(--accent); color: var(--accent); background: #e6f6fb; }
 .period-nav span { font-size: 12px; color: var(--text2); font-family: var(--mono);
                    min-width: 130px; text-align: center; }
 
@@ -360,7 +360,7 @@ select {
   padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600;
 }
 .chip.done    { background: rgba(34,197,94,.15); color: var(--green); }
-.chip.doing   { background: rgba(59,130,246,.15); color: var(--accent2); }
+.chip.doing   { background: rgba(1,143,193,.12); color: var(--accent2); }
 .chip.todo    { background: rgba(100,116,139,.15); color: var(--text3); }
 .chip.delayed { background: rgba(239,68,68,.15); color: var(--red); }
 
@@ -661,13 +661,13 @@ select {
 let DATA = {
   settings: { repo:'', token:'', branch:'main', webhook:'', r1:3, r2:1 },
   groups: [
-    { id:'g1', name:'設計フェーズ',   color:'#3b82f6', desc:'' },
+    { id:'g1', name:'設計フェーズ',   color:'#018FC1', desc:'' },
     { id:'g2', name:'開発フェーズ',   color:'#22c55e', desc:'' },
     { id:'g3', name:'テストフェーズ', color:'#f59e0b', desc:'' },
   ],
   tasks: [
-    { id:'t1', gid:'g1', name:'要件定義',           owner:'田中 太郎', color:'#3b82f6', start:'2025-01-06', end:'2025-01-17', pct:100, status:'done',  deps:[] },
-    { id:'t2', gid:'g1', name:'システム設計',       owner:'山田 花子', color:'#60a5fa', start:'2025-01-13', end:'2025-01-31', pct:80,  status:'doing', deps:[{tid:'t1',lag:0}] },
+    { id:'t1', gid:'g1', name:'要件定義',           owner:'田中 太郎', color:'#018FC1', start:'2025-01-06', end:'2025-01-17', pct:100, status:'done',  deps:[] },
+    { id:'t2', gid:'g1', name:'システム設計',       owner:'山田 花子', color:'#01a8e0', start:'2025-01-13', end:'2025-01-31', pct:80,  status:'doing', deps:[{tid:'t1',lag:0}] },
     { id:'t3', gid:'g2', name:'フロントエンド実装', owner:'鈴木 一郎', color:'#22c55e', start:'2025-02-03', end:'2025-02-28', pct:30,  status:'doing', deps:[{tid:'t2',lag:1}] },
     { id:'t4', gid:'g2', name:'バックエンド実装',   owner:'佐藤 次郎', color:'#16a34a', start:'2025-02-03', end:'2025-03-14', pct:20,  status:'doing', deps:[{tid:'t2',lag:1}] },
     { id:'t5', gid:'g3', name:'単体テスト',         owner:'田中 太郎', color:'#f59e0b', start:'2025-03-03', end:'2025-03-14', pct:0,   status:'todo',  deps:[{tid:'t3',lag:2}] },
@@ -705,7 +705,7 @@ let isDirty   = false;
 let modalMode = null;
 let modalId   = null;
 
-const COLORS = ['#3b82f6','#22c55e','#f59e0b','#ef4444','#a855f7',
+const COLORS = ['#018FC1','#22c55e','#f59e0b','#ef4444','#a855f7',
                 '#ec4899','#06b6d4','#f97316','#14b8a6','#8b5cf6'];
 
 // ══════════════════════════════════════════════════════
@@ -1164,7 +1164,7 @@ function openAddTask() {
     <div class="form-row"><label>担当者</label><select id="f-owner">${memberOpts()}</select></div>
     <div class="form-row"><label>開始日 *</label><input type="date" id="f-start" value="${today}"></div>
     <div class="form-row"><label>終了日 *</label><input type="date" id="f-end" value="${weekLater}"></div>
-    <div class="form-row"><label>色</label>${colorPicker('f-color','#3b82f6')}</div>
+    <div class="form-row"><label>色</label>${colorPicker('f-color','#018FC1')}</div>
     <div class="form-row"><label>ステータス</label><select id="f-status">${statusOpts()}</select></div>
     <div class="form-row"><label>進捗 (%)</label><input type="number" id="f-pct" min="0" max="100" value="0" style="width:80px"></div>
     <div class="form-row"><label>依存タスク</label>
@@ -1207,7 +1207,7 @@ function openEditTask(id) {
 function openAddGroup() {
   openModal('グループ追加', `
     <div class="form-row"><label>グループ名 *</label><input type="text" id="f-name" placeholder="グループ名"></div>
-    <div class="form-row"><label>色</label>${colorPicker('f-color','#3b82f6')}</div>
+    <div class="form-row"><label>色</label>${colorPicker('f-color','#018FC1')}</div>
     <div class="form-row"><label>説明</label><textarea id="f-desc" placeholder="（任意）"></textarea></div>
   `, 'add-group');
 }
@@ -1261,7 +1261,7 @@ function handleModalOk() {
     if (!end)   { toast('終了日を入力してください','err'); return; }
     if (start > end) { toast('終了日は開始日より後にしてください','err'); return; }
 
-    const color  = document.getElementById('f-color')?.value || '#3b82f6';
+    const color  = document.getElementById('f-color')?.value || '#018FC1';
     const depTid = gv('f-dep-task');
     const depLag = gn('f-dep-lag');
     const deps   = depTid ? [{tid:depTid, lag:depLag}] : [];
@@ -1278,7 +1278,7 @@ function handleModalOk() {
   else if (modalMode === 'add-group' || modalMode === 'edit-group') {
     const name = gv('f-name');
     if (!name) { toast('グループ名を入力してください','err'); return; }
-    const color = document.getElementById('f-color')?.value || '#3b82f6';
+    const color = document.getElementById('f-color')?.value || '#018FC1';
     if (modalMode === 'add-group') {
       DATA.groups.push({ id:uid(), name, color, desc:gv('f-desc') });
     } else {
@@ -1712,7 +1712,7 @@ function applyReadonlyMode() {
   banner.innerHTML = '👁 閲覧専用モード — 編集する場合は<a href="index.html" style="color:#fff;margin-left:4px;font-weight:700">編集版を開く</a>';
   banner.style.cssText = [
     'position:fixed','bottom:0','left:0','right:0','z-index:9999',
-    'background:#2563eb','color:#fff','text-align:center',
+    'background:#018FC1','color:#fff','text-align:center',
     'font-size:12px','padding:6px','font-family:var(--font)',
     'box-shadow:0 -2px 8px rgba(0,0,0,0.15)'
   ].join(';');

@@ -29,131 +29,25 @@
   ],
   "tasks": [
     {
-      "id": "t1",
+      "id": "_1qg90ao",
       "gid": "g1",
-      "name": "要件定義",
-      "owner": "田中 太郎",
+      "name": "モーター選定",
+      "owner": "",
       "color": "#3b82f6",
-      "start": "2025-01-06",
-      "end": "2025-01-17",
-      "pct": 100,
-      "status": "done",
+      "start": "2026-04-28",
+      "end": "2026-05-05",
+      "pct": 0,
+      "status": "doing",
       "deps": []
-    },
-    {
-      "id": "t2",
-      "gid": "g1",
-      "name": "システム設計",
-      "owner": "山田 花子",
-      "color": "#60a5fa",
-      "start": "2025-01-13",
-      "end": "2025-01-31",
-      "pct": 80,
-      "status": "doing",
-      "deps": [
-        {
-          "tid": "t1",
-          "lag": 0
-        }
-      ]
-    },
-    {
-      "id": "t3",
-      "gid": "g2",
-      "name": "フロントエンド実装",
-      "owner": "鈴木 一郎",
-      "color": "#22c55e",
-      "start": "2025-02-03",
-      "end": "2025-02-28",
-      "pct": 30,
-      "status": "doing",
-      "deps": [
-        {
-          "tid": "t2",
-          "lag": 1
-        }
-      ]
-    },
-    {
-      "id": "t4",
-      "gid": "g2",
-      "name": "バックエンド実装",
-      "owner": "佐藤 次郎",
-      "color": "#16a34a",
-      "start": "2025-02-03",
-      "end": "2025-03-14",
-      "pct": 20,
-      "status": "doing",
-      "deps": [
-        {
-          "tid": "t2",
-          "lag": 1
-        }
-      ]
-    },
-    {
-      "id": "t5",
-      "gid": "g3",
-      "name": "単体テスト",
-      "owner": "田中 太郎",
-      "color": "#f59e0b",
-      "start": "2025-03-03",
-      "end": "2025-03-14",
-      "pct": 0,
-      "status": "todo",
-      "deps": [
-        {
-          "tid": "t3",
-          "lag": 2
-        }
-      ]
-    },
-    {
-      "id": "t6",
-      "gid": "g3",
-      "name": "結合テスト",
-      "owner": "山田 花子",
-      "color": "#d97706",
-      "start": "2025-03-17",
-      "end": "2025-03-28",
-      "pct": 0,
-      "status": "todo",
-      "deps": [
-        {
-          "tid": "t5",
-          "lag": 0
-        }
-      ]
     }
   ],
   "members": [
     {
       "id": "m1",
-      "name": "田中 太郎",
-      "email": "tanaka@example.com",
-      "teamsId": "@tanaka",
+      "name": "相阪 泰伸",
+      "email": "aisaka.taishin460@mail.kyutech.jp",
+      "teamsId": "@aisaka",
       "role": "開発"
-    },
-    {
-      "id": "m2",
-      "name": "山田 花子",
-      "email": "yamada@example.com",
-      "teamsId": "@yamada",
-      "role": "デザイン"
-    },
-    {
-      "id": "m3",
-      "name": "鈴木 一郎",
-      "email": "suzuki@example.com",
-      "teamsId": "@suzuki",
-      "role": "フロントエンド"
-    },
-    {
-      "id": "m4",
-      "name": "佐藤 次郎",
-      "email": "sato@example.com",
-      "teamsId": "@sato",
-      "role": "バックエンド"
     }
   ],
   "holidays": [

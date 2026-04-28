@@ -32,10 +32,22 @@
       "id": "t5",
       "gid": "g1",
       "name": "モーター選定",
-      "owner": "",
+      "owner": "相阪泰伸",
       "color": "#018fc1",
       "start": "2026-04-28",
       "end": "2026-04-30",
+      "pct": 0,
+      "status": "todo",
+      "deps": []
+    },
+    {
+      "id": "_0exqpqy",
+      "gid": "g1",
+      "name": "モーターハブ設計",
+      "owner": "相阪泰伸",
+      "color": "#018fc1",
+      "start": "2026-04-28",
+      "end": "2026-05-05",
       "pct": 0,
       "status": "todo",
       "deps": []

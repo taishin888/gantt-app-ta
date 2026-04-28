@@ -39,6 +39,18 @@
       "pct": 0,
       "status": "todo",
       "deps": []
+    },
+    {
+      "id": "_68ik6xr",
+      "gid": "g1",
+      "name": "オイルシールパーツ設計",
+      "owner": "相阪泰伸",
+      "color": "#3b82f6",
+      "start": "2026-04-28",
+      "end": "2026-05-05",
+      "pct": 0,
+      "status": "todo",
+      "deps": []
     }
   ],
   "members": [

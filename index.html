@@ -5,6 +5,7 @@
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
 <title>プロジェクト ガントチャート</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
 <link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
 <style>
 :root {
@@ -535,6 +536,20 @@ select {
 #log-panel .log-diff  { font-size: 11px; color: var(--text3); margin-top: 4px;
   font-family: var(--mono); background: var(--bg3); padding: 4px 8px; border-radius: 4px; }
 
+
+/* ── Excel dropzone ── */
+#xlsx-dropzone {
+  border: 2px dashed var(--border2);
+  border-radius: 10px; padding: 28px;
+  text-align: center; transition: all .2s;
+  background: var(--bg3); cursor: default;
+}
+#xlsx-dropzone.drag-over {
+  border-color: var(--accent);
+  background: rgba(1,143,193,0.07);
+  transform: scale(1.01);
+}
+
 </style>
 </head>
 <body>
@@ -682,12 +697,61 @@ select {
   <!-- ══ MEMBERS ══ -->
   <div id="members-panel" class="panel">
     <div class="scroll-panel">
-      <h2>メンバー・祝日管理</h2>
+      <h2>メンバー管理</h2>
 
+      <!-- Excelインポートカード -->
       <div class="section-card">
         <div class="section-card-header">
-          <h3>担当者一覧</h3>
-          <button class="btn sm" onclick="openAddMember()">+ Add Member</button>
+          <h3>📂 Excelファイルからインポート</h3>
+          <button class="btn sm" onclick="downloadMemberTemplate()">📥 テンプレートDL</button>
+        </div>
+        <p style="font-size:12px;color:var(--text3);margin-bottom:14px">
+          以下の列を持つExcelファイル（.xlsx）を読み込むとメンバーリストに反映されます。<br>
+          <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;font-size:11px">
+            名前 / メールアドレス / TeamsID / 役割 / 編集権限（○または×）
+          </code>
+        </p>
+
+        <!-- ドロップゾーン -->
+        <div id="xlsx-dropzone"
+          ondragover="event.preventDefault();this.classList.add('drag-over')"
+          ondragleave="this.classList.remove('drag-over')"
+          ondrop="handleXlsxDrop(event)">
+          <div style="font-size:32px;margin-bottom:8px">📊</div>
+          <div style="font-size:13px;font-weight:600;color:var(--text2)">ここにExcelファイルをドロップ</div>
+          <div style="font-size:12px;color:var(--text3);margin-top:4px">または</div>
+          <label class="btn sm" style="margin-top:8px;cursor:pointer">
+            ファイルを選択
+            <input type="file" accept=".xlsx,.xls" style="display:none" onchange="handleXlsxFile(this)">
+          </label>
+        </div>
+
+        <!-- GitHubから読み込み -->
+        <div style="margin-top:14px;display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <span style="font-size:12px;color:var(--text3)">GitHubリポジトリの <code style="background:var(--bg3);padding:1px 5px;border-radius:4px">data/members.xlsx</code> から:</span>
+          <button class="btn sm" onclick="loadMembersFromGitHub()">🔄 GitHubから読み込み</button>
+          <button class="btn sm" onclick="uploadMembersToGitHub()">☁️ GitHubへ保存</button>
+          <span id="xlsx-gh-status" style="font-size:11px;color:var(--text3)"></span>
+        </div>
+
+        <!-- プレビュー -->
+        <div id="xlsx-preview" style="display:none;margin-top:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <span id="xlsx-preview-label" style="font-size:12px;font-weight:600;color:var(--text2)"></span>
+            <button class="btn sm primary" onclick="applyXlsxImport()">✅ この内容で反映する</button>
+          </div>
+          <table class="data-table" id="xlsx-preview-table">
+            <thead><tr><th>名前</th><th>メール</th><th>Teams ID</th><th>役割</th><th>編集権限</th></tr></thead>
+            <tbody id="xlsx-preview-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 現在のメンバーリスト -->
+      <div class="section-card">
+        <div class="section-card-header">
+          <h3>現在のメンバーリスト</h3>
+          <button class="btn sm" onclick="openAddMember()">＋ 手動追加</button>
         </div>
         <table class="data-table">
           <thead><tr><th>名前</th><th>メール</th><th>Teams ID</th><th>役割</th><th>編集権限</th><th>操作</th></tr></thead>
@@ -695,12 +759,13 @@ select {
         </table>
       </div>
 
+      <!-- 祝日管理 -->
       <div class="section-card">
         <h3 style="margin-bottom:12px">祝日管理</h3>
         <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
           <input type="date" id="hol-date" style="width:160px">
           <input type="text" id="hol-name" placeholder="祝日名" style="width:180px">
-          <button class="btn sm" onclick="addHoliday()">+ Add</button>
+          <button class="btn sm" onclick="addHoliday()">＋ 追加</button>
         </div>
         <table class="data-table">
           <thead><tr><th>日付</th><th>祝日名</th><th>操作</th></tr></thead>
@@ -849,18 +914,15 @@ let DATA = {
     { id:'g3', name:'テストフェーズ', color:'#f59e0b', desc:'' },
   ],
   tasks: [
-    { id:'t1', gid:'g1', name:'要件定義',           owners:['田中 太郎'], color:'#018FC1', start:'2025-01-06', end:'2025-01-17', pct:100, status:'done',  deps:[] },
-    { id:'t2', gid:'g1', name:'システム設計',       owners:['山田 花子'], color:'#01a8e0', start:'2025-01-13', end:'2025-01-31', pct:80,  status:'doing', deps:[{tid:'t1',lag:0}] },
-    { id:'t3', gid:'g2', name:'フロントエンド実装', owners:['鈴木 一郎'], color:'#22c55e', start:'2025-02-03', end:'2025-02-28', pct:30,  status:'doing', deps:[{tid:'t2',lag:1}] },
-    { id:'t4', gid:'g2', name:'バックエンド実装',   owners:['佐藤 次郎'], color:'#16a34a', start:'2025-02-03', end:'2025-03-14', pct:20,  status:'doing', deps:[{tid:'t2',lag:1}] },
-    { id:'t5', gid:'g3', name:'単体テスト',         owners:['田中 太郎'], color:'#f59e0b', start:'2025-03-03', end:'2025-03-14', pct:0,   status:'todo',  deps:[{tid:'t3',lag:2}] },
-    { id:'t6', gid:'g3', name:'結合テスト',         owners:['山田 花子'], color:'#d97706', start:'2025-03-17', end:'2025-03-28', pct:0,   status:'todo',  deps:[{tid:'t5',lag:0}] },
+    { id:'t1', gid:'g1', name:'要件定義',           owners:['相阪 泰伸'], color:'#018FC1', start:'2025-01-06', end:'2025-01-17', pct:100, status:'done',  deps:[] },
+    { id:'t2', gid:'g1', name:'システム設計',       owners:['相阪 泰伸'], color:'#01a8e0', start:'2025-01-13', end:'2025-01-31', pct:80,  status:'doing', deps:[{tid:'t1',lag:0}] },
+    { id:'t3', gid:'g2', name:'フロントエンド実装', owners:['相阪 泰伸'], color:'#22c55e', start:'2025-02-03', end:'2025-02-28', pct:30,  status:'doing', deps:[{tid:'t2',lag:1}] },
+    { id:'t4', gid:'g2', name:'バックエンド実装',   owners:['相阪 泰伸'], color:'#16a34a', start:'2025-02-03', end:'2025-03-14', pct:20,  status:'doing', deps:[{tid:'t2',lag:1}] },
+    { id:'t5', gid:'g3', name:'単体テスト',         owners:['相阪 泰伸'], color:'#f59e0b', start:'2025-03-03', end:'2025-03-14', pct:0,   status:'todo',  deps:[{tid:'t3',lag:2}] },
+    { id:'t6', gid:'g3', name:'結合テスト',         owners:['相阪 泰伸'], color:'#d97706', start:'2025-03-17', end:'2025-03-28', pct:0,   status:'todo',  deps:[{tid:'t5',lag:0}] },
   ],
   members: [
-    { id:'m1', name:'相阪泰伸', email:'aisaka.taishin460@mail.kyutech.jp', teamsId:'@aisaka', role:'開発',            canEdit:true },
-    { id:'m2', name:'中原諒大', email:'nakahara.ryodai', teamsId:'@yamada', role:'デザイン',          canEdit:true },
-    { id:'m3', name:'鈴木 一郎', email:'suzuki@example.com', teamsId:'@suzuki', role:'フロントエンド',    canEdit:false },
-    { id:'m4', name:'佐藤 次郎', email:'sato@example.com',   teamsId:'@sato',   role:'バックエンド',      canEdit:false },
+    { id:'m1', name:'相阪 泰伸', email:'aisaka.taishin460@mail.kyutech.jp', teamsId:'@aisaka', role:'', canEdit:true },
   ],
   milestones: [
     { id:'ms1', name:'中間レビュー', date:'2025-02-14', color:'#a855f7', icon:'🎯' },
@@ -1691,6 +1753,237 @@ function deleteMilestone(id) {
   if (!confirm('このマイルストーンを削除しますか？')) return;
   DATA.milestones = (DATA.milestones||[]).filter(m=>m.id!==id);
   setDirty(); closeModal(); renderMilestoneTable(); renderGantt();
+}
+
+
+// ══════════════════════════════════════════════════════
+//  EXCEL MEMBER IMPORT
+// ══════════════════════════════════════════════════════
+
+// Excelファイルのドロップ処理
+function handleXlsxDrop(event) {
+  event.preventDefault();
+  document.getElementById('xlsx-dropzone').classList.remove('drag-over');
+  const file = event.dataTransfer.files[0];
+  if (!file) return;
+  readXlsxFile(file);
+}
+
+// ファイル選択処理
+function handleXlsxFile(input) {
+  const file = input.files[0];
+  if (!file) return;
+  readXlsxFile(file);
+  input.value = ''; // リセット
+}
+
+// SheetJSでxlsxを読み込んでプレビュー表示
+function readXlsxFile(file) {
+  if (!file.name.match(/\.xlsx?$/i)) {
+    toast('Excelファイル（.xlsx / .xls）を選択してください', 'err');
+    return;
+  }
+  const reader = new FileReader();
+  reader.onload = e => {
+    try {
+      const members = parseXlsxToMembers(e.target.result);
+      if (!members.length) { toast('メンバーデータが見つかりませんでした', 'err'); return; }
+      showXlsxPreview(members, `${file.name} から ${members.length} 名を検出`);
+    } catch(err) {
+      toast('読み込みエラー: ' + err.message, 'err');
+      console.error(err);
+    }
+  };
+  reader.readAsArrayBuffer(file);
+}
+
+// ArrayBuffer → メンバー配列に変換
+function parseXlsxToMembers(buffer) {
+  const wb = XLSX.read(buffer, { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]]; // 先頭シート
+  const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+  // 列名マッピング（日本語・英語両対応）
+  const COL = {
+    name:    ['名前', 'name', 'Name', '氏名'],
+    email:   ['メールアドレス', 'メール', 'email', 'Email', 'mail'],
+    teamsId: ['TeamsID', 'Teams ID', 'teamsId', 'teams_id', 'Teamsメンション'],
+    role:    ['役割', 'role', 'Role', '部署', '所属'],
+    canEdit: ['編集権限', 'canEdit', '権限', 'edit', 'EditPermission'],
+  };
+
+  function findCol(row, keys) {
+    for (const k of keys) {
+      if (k in row) return String(row[k]).trim();
+    }
+    return '';
+  }
+
+  return rows
+    .map(row => {
+      const name = findCol(row, COL.name);
+      if (!name) return null;
+      const canEditVal = findCol(row, COL.canEdit);
+      const canEdit = ['○', 'o', 'O', '1', 'true', 'yes', 'YES', '編集可', '✓', '✅']
+        .includes(canEditVal) || canEditVal.toLowerCase() === 'true';
+      return {
+        id:      'xl_' + Math.random().toString(36).slice(2, 8),
+        name,
+        email:   findCol(row, COL.email),
+        teamsId: findCol(row, COL.teamsId),
+        role:    findCol(row, COL.role),
+        canEdit,
+      };
+    })
+    .filter(Boolean);
+}
+
+// プレビューテーブルを表示
+let _xlsxPendingMembers = [];
+function showXlsxPreview(members, label) {
+  _xlsxPendingMembers = members;
+  document.getElementById('xlsx-preview').style.display = 'block';
+  document.getElementById('xlsx-preview-label').textContent = label;
+  document.getElementById('xlsx-preview-tbody').innerHTML = members.map(m => `
+    <tr>
+      <td style="font-weight:600">${esc(m.name)}</td>
+      <td style="font-family:var(--mono);font-size:11px">${esc(m.email || '─')}</td>
+      <td style="font-family:var(--mono);font-size:11px">${esc(m.teamsId || '─')}</td>
+      <td style="color:var(--text3)">${esc(m.role || '─')}</td>
+      <td>${m.canEdit
+        ? '<span class="edit-badge">編集可</span>'
+        : '<span class="readonly-badge">閲覧のみ</span>'}</td>
+    </tr>
+  `).join('');
+}
+
+// プレビューの内容をDATAに反映
+function applyXlsxImport() {
+  if (!_xlsxPendingMembers.length) return;
+
+  // 既存メンバーとマージ（メールアドレスでマッチング、なければ名前でマッチング）
+  const merged = [..._xlsxPendingMembers];
+  DATA.members.forEach(existing => {
+    const byEmail = merged.find(m => m.email && m.email === existing.email);
+    const byName  = merged.find(m => m.name === existing.name);
+    if (!byEmail && !byName) merged.push(existing); // Excelにない既存メンバーは保持
+  });
+
+  DATA.members = merged;
+  setDirty();
+  renderMemberTable();
+  document.getElementById('xlsx-preview').style.display = 'none';
+  _xlsxPendingMembers = [];
+  toast(`✅ ${DATA.members.length} 名のメンバーを反映しました`, 'ok');
+}
+
+// ── GitHubからdata/members.xlsxを読み込み ──
+async function loadMembersFromGitHub() {
+  const { repo, token } = DATA.settings;
+  if (!repo || !token) { toast('設定タブでGitHubを設定してください', 'err'); return; }
+
+  const status = document.getElementById('xlsx-gh-status');
+  status.textContent = '読み込み中...';
+
+  try {
+    const r = await fetch(
+      `https://api.github.com/repos/${repo}/contents/data/members.xlsx?t=${Date.now()}`,
+      { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' } }
+    );
+    if (!r.ok) {
+      status.textContent = r.status === 404 ? '⚠ data/members.xlsx が見つかりません' : `エラー: ${r.status}`;
+      return;
+    }
+    const j      = await r.json();
+    const binary = atob(j.content.replace(/\s/g, ''));
+    const buf    = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) buf[i] = binary.charCodeAt(i);
+
+    const members = parseXlsxToMembers(buf.buffer);
+    if (!members.length) { status.textContent = '⚠ メンバーデータが空です'; return; }
+
+    showXlsxPreview(members, `GitHub data/members.xlsx から ${members.length} 名を検出`);
+    status.textContent = `✅ ${members.length} 名を取得（「この内容で反映する」で確定）`;
+  } catch(e) {
+    status.textContent = 'エラー: ' + e.message;
+    toast('読み込み失敗: ' + e.message, 'err');
+  }
+}
+
+// ── 現在のメンバーリストをxlsxに変換してGitHubへ保存 ──
+async function uploadMembersToGitHub() {
+  const { repo, token, branch } = DATA.settings;
+  if (!repo || !token) { toast('設定タブでGitHubを設定してください', 'err'); return; }
+  if (!DATA.members.length) { toast('メンバーがいません', 'err'); return; }
+
+  const status = document.getElementById('xlsx-gh-status');
+  status.textContent = 'アップロード中...';
+
+  try {
+    // メンバーをExcelに変換
+    const rows = DATA.members.map(m => ({
+      '名前':         m.name,
+      'メールアドレス': m.email   || '',
+      'TeamsID':       m.teamsId || '',
+      '役割':          m.role    || '',
+      '編集権限':      m.canEdit ? '○' : '×',
+    }));
+    const ws  = XLSX.utils.json_to_sheet(rows);
+    const wb  = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'メンバー');
+    const xlsxBuf  = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+    const b64      = btoa(String.fromCharCode(...new Uint8Array(xlsxBuf)));
+
+    // 既存SHAを取得
+    let sha = '';
+    try {
+      const r = await fetch(
+        `https://api.github.com/repos/${repo}/contents/data/members.xlsx?t=${Date.now()}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (r.ok) sha = (await r.json()).sha;
+    } catch(e) {}
+
+    const body = {
+      message: `メンバーリスト更新 ${new Date().toLocaleString('ja-JP')}`,
+      content: b64,
+      branch:  branch || 'main',
+    };
+    if (sha) body.sha = sha;
+
+    const pr = await fetch(
+      `https://api.github.com/repos/${repo}/contents/data/members.xlsx`,
+      { method: 'PUT', headers: { Authorization: `Bearer ${token}`,
+          Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(body) }
+    );
+    if (!pr.ok) throw new Error('PUT失敗: ' + pr.status);
+
+    status.textContent = `✅ data/members.xlsx を保存しました（${DATA.members.length} 名）`;
+    toast('GitHubへのアップロード完了', 'ok');
+  } catch(e) {
+    status.textContent = 'エラー: ' + e.message;
+    toast('アップロード失敗: ' + e.message, 'err');
+  }
+}
+
+// ── Excelテンプレートをダウンロード ──
+function downloadMemberTemplate() {
+  const sample = [
+    { '名前': '相阪 泰伸', 'メールアドレス': 'aisaka.taishin460@mail.kyutech.jp', 'TeamsID': '@aisaka', '役割': '', '編集権限': '○' },
+    { '名前': '（追加メンバー）', 'メールアドレス': 'example@mail.com', 'TeamsID': '@example', '役割': '', '編集権限': '×' },
+  ];
+  const ws = XLSX.utils.json_to_sheet(sample);
+
+  // 列幅設定
+  ws['!cols'] = [
+    { wch: 16 }, { wch: 26 }, { wch: 14 }, { wch: 12 }, { wch: 10 }
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'メンバー');
+  XLSX.writeFile(wb, 'members_template.xlsx');
+  toast('テンプレートをダウンロードしました', 'ok');
 }
 
 // ══════════════════════════════════════════════════════

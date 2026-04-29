@@ -1,6 +1,6 @@
 {
   "settings": {
-    "repo": "taishin888/gantt-app-ta",
+    "repo": "",
     "token": "",
     "branch": "main",
     "webhook": "",
@@ -10,164 +10,158 @@
   "groups": [
     {
       "id": "g1",
-      "name": "新人教育",
-      "color": "#14b8a6",
+      "name": "設計フェーズ",
+      "color": "#018FC1",
       "desc": ""
     },
     {
       "id": "g2",
-      "name": "設計",
-      "color": "#0164c1",
-      "desc": ""
-    },
-    {
-      "id": "g3",
-      "name": "開発",
+      "name": "開発フェーズ",
       "color": "#22c55e",
       "desc": ""
     },
     {
-      "id": "_doap08p",
-      "name": "統合",
+      "id": "g3",
+      "name": "テストフェーズ",
       "color": "#f59e0b",
-      "desc": ""
-    },
-    {
-      "id": "_51ctg41",
-      "name": "試験",
-      "color": "#ef4444",
       "desc": ""
     }
   ],
   "tasks": [
     {
+      "id": "t1",
+      "gid": "g1",
+      "name": "要件定義",
+      "owners": [
+        "相阪 泰伸"
+      ],
+      "color": "#018FC1",
+      "start": "2025-01-06",
+      "end": "2025-01-17",
+      "pct": 100,
+      "status": "done",
+      "deps": []
+    },
+    {
+      "id": "t2",
+      "gid": "g1",
+      "name": "システム設計",
+      "owners": [
+        "相阪 泰伸"
+      ],
+      "color": "#01a8e0",
+      "start": "2025-01-13",
+      "end": "2025-01-31",
+      "pct": 80,
+      "status": "doing",
+      "deps": [
+        {
+          "tid": "t1",
+          "lag": 0
+        }
+      ]
+    },
+    {
+      "id": "t3",
+      "gid": "g2",
+      "name": "フロントエンド実装",
+      "owners": [
+        "相阪 泰伸"
+      ],
+      "color": "#22c55e",
+      "start": "2025-02-03",
+      "end": "2025-02-28",
+      "pct": 30,
+      "status": "doing",
+      "deps": [
+        {
+          "tid": "t2",
+          "lag": 1
+        }
+      ]
+    },
+    {
+      "id": "t4",
+      "gid": "g2",
+      "name": "バックエンド実装",
+      "owners": [
+        "相阪 泰伸"
+      ],
+      "color": "#16a34a",
+      "start": "2025-02-03",
+      "end": "2025-03-14",
+      "pct": 20,
+      "status": "doing",
+      "deps": [
+        {
+          "tid": "t2",
+          "lag": 1
+        }
+      ]
+    },
+    {
       "id": "t5",
-      "gid": "g2",
-      "name": "モーター選定",
-      "owner": "相阪泰伸",
-      "color": "#018fc1",
-      "start": "2026-04-28",
-      "end": "2026-04-30",
+      "gid": "g3",
+      "name": "単体テスト",
+      "owners": [
+        "相阪 泰伸"
+      ],
+      "color": "#f59e0b",
+      "start": "2025-03-03",
+      "end": "2025-03-14",
       "pct": 0,
       "status": "todo",
-      "deps": []
+      "deps": [
+        {
+          "tid": "t3",
+          "lag": 2
+        }
+      ]
     },
     {
-      "id": "_0exqpqy",
-      "gid": "g2",
-      "name": "モーターハブ設計",
-      "owner": "相阪泰伸",
-      "color": "#018fc1",
-      "start": "2026-04-28",
-      "end": "2026-05-05",
+      "id": "t6",
+      "gid": "g3",
+      "name": "結合テスト",
+      "owners": [
+        "相阪 泰伸"
+      ],
+      "color": "#d97706",
+      "start": "2025-03-17",
+      "end": "2025-03-28",
       "pct": 0,
       "status": "todo",
-      "deps": []
-    },
-    {
-      "id": "_us4353x",
-      "gid": "g1",
-      "name": "資料作成1",
-      "owner": "",
-      "color": "#14b8a6",
-      "start": "2026-04-28",
-      "end": "2026-05-12",
-      "pct": 0,
-      "status": "todo",
-      "deps": []
-    },
-    {
-      "id": "_y4s4l0y",
-      "gid": "g1",
-      "name": "資料作成2",
-      "owner": "",
-      "color": "#14b8a6",
-      "start": "2026-04-28",
-      "end": "2026-05-14",
-      "pct": 0,
-      "status": "todo",
-      "deps": []
-    },
-    {
-      "id": "_iylaj2j",
-      "gid": "g1",
-      "name": "資料作成3",
-      "owner": "",
-      "color": "#14b8a6",
-      "start": "2026-04-28",
-      "end": "2026-05-19",
-      "pct": 0,
-      "status": "todo",
-      "deps": []
-    },
-    {
-      "id": "_np4j0lo",
-      "gid": "g1",
-      "name": "資料作成4",
-      "owner": "",
-      "color": "#14b8a6",
-      "start": "2026-04-28",
-      "end": "2026-06-09",
-      "pct": 0,
-      "status": "todo",
-      "deps": []
-    },
-    {
-      "id": "_umgvycm",
-      "gid": "g1",
-      "name": "資料作成5",
-      "owner": "",
-      "color": "#14b8a6",
-      "start": "2026-04-29",
-      "end": "2026-05-06",
-      "pct": 0,
-      "status": "todo",
-      "deps": []
-    },
-    {
-      "id": "_imy00z3",
-      "gid": "g1",
-      "name": "資料作成6",
-      "owner": "",
-      "color": "#14b8a6",
-      "start": "2026-04-29",
-      "end": "2026-05-06",
-      "pct": 0,
-      "status": "todo",
-      "deps": []
-    },
-    {
-      "id": "_hy015bc",
-      "gid": "g1",
-      "name": "資料作成7",
-      "owner": "",
-      "color": "#14b8a6",
-      "start": "2026-04-29",
-      "end": "2026-05-06",
-      "pct": 0,
-      "status": "todo",
-      "deps": []
-    },
-    {
-      "id": "_s1dpvph",
-      "gid": "g1",
-      "name": "資料作成8",
-      "owner": "",
-      "color": "#14b8a6",
-      "start": "2026-04-29",
-      "end": "2026-05-06",
-      "pct": 0,
-      "status": "todo",
-      "deps": []
+      "deps": [
+        {
+          "tid": "t5",
+          "lag": 0
+        }
+      ]
     }
   ],
   "members": [
     {
-      "id": "m4",
-      "name": "相阪泰伸",
+      "id": "m1",
+      "name": "相阪 泰伸",
       "email": "aisaka.taishin460@mail.kyutech.jp",
       "teamsId": "@aisaka",
-      "role": "開発"
+      "role": "",
+      "canEdit": true
+    }
+  ],
+  "milestones": [
+    {
+      "id": "ms1",
+      "name": "中間レビュー",
+      "date": "2025-02-14",
+      "color": "#a855f7",
+      "icon": "🎯"
+    },
+    {
+      "id": "ms2",
+      "name": "リリース",
+      "date": "2025-03-31",
+      "color": "#ef4444",
+      "icon": "🚀"
     }
   ],
   "holidays": [

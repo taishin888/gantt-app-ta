@@ -8,20 +8,18 @@ const html = fs.readFileSync('index.html', 'utf8');
 
 console.log('[build] Reading data/tasks.json ...');
 const data = JSON.parse(fs.readFileSync('data/tasks.json', 'utf8'));
-
-console.log('[build] tasks:',   (data.tasks   || []).length,
-            '/ groups:',  (data.groups  || []).length,
-            '/ members:', (data.members || []).length);
-
-// settings が存在しない場合のデフォルト
 const orig = data.settings || {};
+
+console.log('[build] tasks:',    (data.tasks      || []).length,
+            '/ groups:',         (data.groups     || []).length,
+            '/ members:',        (data.members    || []).length,
+            '/ milestones:',     (data.milestones || []).length);
 
 // トークンを除去した安全なデータ
 const safeData = {
   ...data,
   settings: { ...orig, token: '', ghToken: '' }
 };
-
 const dataJson = JSON.stringify(safeData, null, 2);
 
 // ── マーカー置換 ──
@@ -44,7 +42,7 @@ if (viewer.includes('// __READONLY_FLAG__')) {
   );
   console.log('[build] READONLY flag set to true');
 } else {
-  console.warn('[build] WARNING: __READONLY_FLAG__ not found.');
+  console.warn('[build] WARNING: __READONLY_FLAG__ not found');
 }
 
 // ── _site ディレクトリ作成 ──
@@ -66,5 +64,3 @@ for (const f of fs.readdirSync('data')) {
   fs.copyFileSync(path.join('data', f), path.join('_site', 'data', f));
 }
 console.log('[build] Done.');
-console.log('[build] viewer URL: /viewer.html');
-console.log('[build] editor URL: /index.html');

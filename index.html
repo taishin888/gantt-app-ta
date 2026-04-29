@@ -463,9 +463,94 @@ select {
 }
 .owner-check-item input[type=checkbox] { width:15px; height:15px; accent-color:var(--accent); }
 
+
+/* ── Login overlay ── */
+#login-overlay {
+  position: fixed; inset: 0; z-index: 9000;
+  background: #f8f9fb;
+  display: flex; align-items: center; justify-content: center;
+}
+#login-box {
+  background: #fff; border: 1px solid var(--border);
+  border-radius: 16px; padding: 40px 48px;
+  width: 380px; box-shadow: 0 8px 40px rgba(0,0,0,0.12);
+  text-align: center;
+}
+#login-box h2 { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
+#login-box p  { font-size: 13px; color: var(--text2); margin-bottom: 28px; }
+#login-email  { width: 100%; margin-bottom: 12px; padding: 10px 14px; font-size: 14px; }
+#login-btn    { width: 100%; height: 42px; font-size: 14px; font-weight: 700; }
+#login-err    { color: var(--red); font-size: 12px; margin-top: 10px; min-height: 18px; }
+
+/* ── User chip in topbar ── */
+#user-chip {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 12px; border-radius: 20px;
+  background: rgba(1,143,193,0.1); border: 1px solid rgba(1,143,193,0.2);
+  font-size: 12px; font-weight: 600; color: var(--accent);
+  cursor: pointer; position: relative;
+}
+#user-chip:hover { background: rgba(1,143,193,0.18); }
+#user-menu {
+  position: absolute; top: calc(100% + 6px); right: 0;
+  background: #fff; border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px;
+  box-shadow: var(--shadow); z-index: 200;
+  min-width: 160px; display: none;
+}
+#user-chip:hover #user-menu, #user-menu:hover { display: block; }
+.user-menu-item {
+  padding: 8px 12px; border-radius: 6px;
+  font-size: 12px; cursor: pointer; color: var(--text);
+}
+.user-menu-item:hover { background: var(--bg3); }
+.readonly-badge {
+  display: inline-flex; align-items: center;
+  padding: 1px 7px; border-radius: 10px;
+  background: rgba(239,68,68,0.1); color: var(--red);
+  font-size: 10px; font-weight: 700;
+}
+.edit-badge {
+  display: inline-flex; align-items: center;
+  padding: 1px 7px; border-radius: 10px;
+  background: rgba(34,197,94,0.1); color: var(--green);
+  font-size: 10px; font-weight: 700;
+}
+
+/* ── Edit log panel ── */
+#log-panel .log-entry {
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+  display: flex; gap: 12px; align-items: flex-start;
+}
+#log-panel .log-avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--accent); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; flex-shrink: 0;
+}
+#log-panel .log-body  { flex: 1; min-width: 0; }
+#log-panel .log-name  { font-weight: 700; font-size: 13px; }
+#log-panel .log-time  { font-size: 11px; color: var(--text3); margin-left: 8px; font-family: var(--mono); }
+#log-panel .log-msg   { font-size: 12px; color: var(--text2); margin-top: 2px; }
+#log-panel .log-diff  { font-size: 11px; color: var(--text3); margin-top: 4px;
+  font-family: var(--mono); background: var(--bg3); padding: 4px 8px; border-radius: 4px; }
+
 </style>
 </head>
 <body>
+
+<!-- Login Overlay -->
+<div id="login-overlay">
+  <div id="login-box">
+    <div style="font-size:48px;margin-bottom:12px">📊</div>
+    <h2>ガントチャート</h2>
+    <p>メールアドレスでログインしてください</p>
+    <input type="email" id="login-email" placeholder="your@email.com"
+           onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="btn primary" id="login-btn" onclick="doLogin()">ログイン</button>
+    <div id="login-err"></div>
+  </div>
+</div>
 
 <!-- Top Bar -->
 <div id="topbar">
@@ -489,6 +574,14 @@ select {
   <button class="btn" onclick="openAddTask()">+ Task</button>
   <button class="btn primary" onclick="saveToGitHub()">Save &amp; Notify</button>
   <span id="save-status">起動中...</span>
+  <div id="user-chip" style="display:none">
+    <span id="user-chip-name">—</span>
+    <span id="user-chip-badge"></span>
+    <div id="user-menu">
+      <div class="user-menu-item" onclick="openLogPanel()">📋 編集ログ</div>
+      <div class="user-menu-item" onclick="doLogout()" style="color:var(--red)">🚪 ログアウト</div>
+    </div>
+  </div>
 </div>
 
 <!-- Tabs -->
@@ -497,6 +590,7 @@ select {
   <button class="tab"        data-panel="task-panel">Tasks</button>
   <button class="tab"        data-panel="members-panel">Members</button>
   <button class="tab"        data-panel="milestone-panel">Milestones</button>
+  <button class="tab"        data-panel="log-panel">📋 ログ</button>
   <button class="tab"        data-panel="settings-panel">Settings</button>
 </div>
 
@@ -596,7 +690,7 @@ select {
           <button class="btn sm" onclick="openAddMember()">+ Add Member</button>
         </div>
         <table class="data-table">
-          <thead><tr><th>名前</th><th>メール</th><th>Teams ID</th><th>役割</th><th>操作</th></tr></thead>
+          <thead><tr><th>名前</th><th>メール</th><th>Teams ID</th><th>役割</th><th>編集権限</th><th>操作</th></tr></thead>
           <tbody id="member-tbody"></tbody>
         </table>
       </div>
@@ -635,6 +729,21 @@ select {
           </thead>
           <tbody id="milestone-tbody"></tbody>
         </table>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ══ LOG ══ -->
+  <div id="log-panel" class="panel">
+    <div class="scroll-panel">
+      <h2>編集ログ</h2>
+      <div class="section-card">
+        <div class="section-card-header">
+          <h3>変更履歴</h3>
+          <button class="btn sm" onclick="loadEditLog()">🔄 更新</button>
+        </div>
+        <div id="log-list"><p style="color:var(--text3);font-size:13px">読み込み中...</p></div>
       </div>
     </div>
   </div>
@@ -748,10 +857,10 @@ let DATA = {
     { id:'t6', gid:'g3', name:'結合テスト',         owners:['山田 花子'], color:'#d97706', start:'2025-03-17', end:'2025-03-28', pct:0,   status:'todo',  deps:[{tid:'t5',lag:0}] },
   ],
   members: [
-    { id:'m1', name:'田中 太郎', email:'tanaka@example.com', teamsId:'@tanaka', role:'開発' },
-    { id:'m2', name:'山田 花子', email:'yamada@example.com', teamsId:'@yamada', role:'デザイン' },
-    { id:'m3', name:'鈴木 一郎', email:'suzuki@example.com', teamsId:'@suzuki', role:'フロントエンド' },
-    { id:'m4', name:'佐藤 次郎', email:'sato@example.com',   teamsId:'@sato',   role:'バックエンド' },
+    { id:'m1', name:'相阪泰伸', email:'aisaka.taishin460@mail.kyutech.jp', teamsId:'@aisaka', role:'開発',            canEdit:true },
+    { id:'m2', name:'中原諒大', email:'nakahara.ryodai', teamsId:'@yamada', role:'デザイン',          canEdit:true },
+    { id:'m3', name:'鈴木 一郎', email:'suzuki@example.com', teamsId:'@suzuki', role:'フロントエンド',    canEdit:false },
+    { id:'m4', name:'佐藤 次郎', email:'sato@example.com',   teamsId:'@sato',   role:'バックエンド',      canEdit:false },
   ],
   milestones: [
     { id:'ms1', name:'中間レビュー', date:'2025-02-14', color:'#a855f7', icon:'🎯' },
@@ -776,12 +885,13 @@ const READONLY = false; // __READONLY_FLAG__
 // ══════════════════════════════════════════════════════
 //  VIEW STATE
 // ══════════════════════════════════════════════════════
-let viewStart = new Date();  // set in init
-let viewDays  = 90;
-let dayW      = 32;
-let isDirty   = false;
-let modalMode = null;
-let modalId   = null;
+let viewStart   = new Date();  // set in init
+let viewDays    = 90;
+let dayW        = 32;
+let isDirty     = false;
+let modalMode   = null;
+let modalId     = null;
+let currentUser = null;  // ログイン中メンバー { id, name, email, canEdit }
 
 const COLORS = ['#018FC1','#22c55e','#f59e0b','#ef4444','#a855f7',
                 '#ec4899','#06b6d4','#f97316','#14b8a6','#8b5cf6'];
@@ -828,6 +938,7 @@ document.querySelectorAll('.tab').forEach(tab => {
     if (tab.dataset.panel === 'task-panel')    { renderGroupTable(); renderTaskTable(); }
     if (tab.dataset.panel === 'members-panel') { renderMemberTable(); renderHolidayTable(); }
     if (tab.dataset.panel === 'milestone-panel') { renderMilestoneTable(); }
+    if (tab.dataset.panel === 'log-panel') { loadEditLog(); }
   });
 });
 
@@ -1080,6 +1191,7 @@ function drawDeps(rowMap) {
 function makeDraggable(bar, task, row) {
   bar.addEventListener('mousedown', e => {
     if (e.target.classList.contains('rhandle')) return;
+    if (window._editLocked) return;  // 閲覧専用ユーザーはドラッグ不可
     e.preventDefault();
     hideTip();
     const x0 = e.clientX;
@@ -1110,6 +1222,7 @@ function makeDraggable(bar, task, row) {
 
 function makeResizable(handle, task, bar) {
   handle.addEventListener('mousedown', e => {
+    if (window._editLocked) return;  // 閲覧専用ユーザーはリサイズ不可
     e.preventDefault(); e.stopPropagation();
     hideTip();
     const x0 = e.clientX, e0 = task.end;
@@ -1312,6 +1425,13 @@ function openAddMember() {
     <div class="form-row"><label>メールアドレス</label><input type="email" id="f-email" placeholder="tanaka@example.com"></div>
     <div class="form-row"><label>Teams ID</label><input type="text" id="f-teams" placeholder="@tanaka"></div>
     <div class="form-row"><label>役割</label><input type="text" id="f-role" placeholder="開発"></div>
+    <div class="form-row">
+      <label>編集権限</label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="f-canedit" style="width:16px;height:16px;accent-color:var(--accent)">
+        <span style="font-size:13px">このメンバーに編集権限を付与する</span>
+      </label>
+    </div>
   `, 'add-member');
 }
 
@@ -1322,6 +1442,13 @@ function openEditMember(id) {
     <div class="form-row"><label>メールアドレス</label><input type="email" id="f-email" value="${esc(m.email||'')}"></div>
     <div class="form-row"><label>Teams ID</label><input type="text" id="f-teams" value="${esc(m.teamsId||'')}"></div>
     <div class="form-row"><label>役割</label><input type="text" id="f-role" value="${esc(m.role||'')}"></div>
+    <div class="form-row">
+      <label>編集権限</label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="f-canedit" ${m.canEdit?'checked':''} style="width:16px;height:16px;accent-color:var(--accent)">
+        <span style="font-size:13px">このメンバーに編集権限を付与する</span>
+      </label>
+    </div>
     <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
       <button class="btn danger" onclick="deleteMember('${id}')">🗑 このメンバーを削除</button>
     </div>
@@ -1388,11 +1515,12 @@ function handleModalOk() {
   else if (modalMode === 'add-member' || modalMode === 'edit-member') {
     const name = gv('f-name');
     if (!name) { toast('名前を入力してください','err'); return; }
+    const canEdit = !!document.getElementById('f-canedit')?.checked;
     if (modalMode === 'add-member') {
-      DATA.members.push({ id:uid(), name, email:gv('f-email'), teamsId:gv('f-teams'), role:gv('f-role') });
+      DATA.members.push({ id:uid(), name, email:gv('f-email'), teamsId:gv('f-teams'), role:gv('f-role'), canEdit });
     } else {
       const m = DATA.members.find(x=>x.id===modalId);
-      Object.assign(m, { name, email:gv('f-email'), teamsId:gv('f-teams'), role:gv('f-role') });
+      Object.assign(m, { name, email:gv('f-email'), teamsId:gv('f-teams'), role:gv('f-role'), canEdit });
     }
   }
 
@@ -1618,6 +1746,13 @@ function renderMemberTable() {
       <td style="font-family:var(--mono);font-size:11px">${esc(m.email||'─')}</td>
       <td style="font-family:var(--mono);font-size:11px">${esc(m.teamsId||'─')}</td>
       <td style="color:var(--text3)">${esc(m.role||'─')}</td>
+      <td>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" ${m.canEdit?'checked':''} style="accent-color:var(--accent)"
+            onchange="DATA.members.find(x=>x.id==='${m.id}').canEdit=this.checked;setDirty()">
+          <span style="font-size:11px">${m.canEdit?'<span class=\'edit-badge\'>編集可</span>':'<span class=\'readonly-badge\'>閲覧のみ</span>'}</span>
+        </label>
+      </td>
       <td><button class="btn sm" onclick="openEditMember('${m.id}')">編集</button></td>
     </tr>
   `).join('');
@@ -1759,9 +1894,21 @@ async function saveToGitHub() {
   }
 
   const targetBranch = branch || 'main';
+  if (!currentUser || !currentUser.canEdit) {
+    toast('⚠ 編集権限がありません', 'err'); return;
+  }
   toast('GitHubに保存中...', 'info');
+  const summary = `${DATA.tasks.length}タスク / ${DATA.groups.length}グループ`;
 
-  const MAX_RETRY = 3;
+  const ok = await mergeAndSave(DATA, summary);
+  if (ok) {
+    setDirty(false);
+    $('save-status').textContent = '✓ ' + currentUser.name + ' が保存 ' + new Date().toLocaleTimeString('ja-JP');
+    toast('✅ 保存しました（マージ完了）', 'ok');
+    renderAll();
+    await appendEditLog(summary);
+  }
+  return;
   for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
     try {
       // ── 毎回最新SHAを取得 ──
@@ -1868,17 +2015,18 @@ async function loadFromGitHub() {
   if (!repo||!token) return;
   try {
     const r = await fetch(
-      `https://api.github.com/repos/${repo}/contents/data/tasks.json`,
-      { headers:{ Authorization:`Bearer ${token}` } }
+      `https://api.github.com/repos/${repo}/contents/data/tasks.json?t=${Date.now()}`,
+      { headers:{ Authorization:`Bearer ${token}`, 'Cache-Control':'no-cache' } }
     );
     if (!r.ok) return;
-    const j = await r.json();
+    const j    = await r.json();
     const text = decodeURIComponent(escape(atob(j.content.replace(/\s/g,''))));
     const loaded = JSON.parse(text);
-    if (loaded.groups)   DATA.groups   = loaded.groups;
-    if (loaded.tasks)    DATA.tasks    = loaded.tasks;
-    if (loaded.members)  DATA.members  = loaded.members;
-    if (loaded.holidays) DATA.holidays = loaded.holidays;
+    if (loaded.groups)      DATA.groups      = loaded.groups;
+    if (loaded.tasks)       DATA.tasks       = loaded.tasks;
+    if (loaded.members)     DATA.members     = loaded.members;
+    if (loaded.holidays)    DATA.holidays    = loaded.holidays;
+    if (loaded.milestones)  DATA.milestones  = loaded.milestones;
     toast('GitHubからデータを読み込みました','ok');
     renderAll();
     setDirty(false);
@@ -2061,6 +2209,266 @@ document.addEventListener('DOMContentLoaded', () => {
   }
 });
 
+
+// ══════════════════════════════════════════════════════
+//  AUTH & LOGIN
+// ══════════════════════════════════════════════════════
+function doLogin() {
+  const email = ($('login-email').value || '').trim().toLowerCase();
+  if (!email) { $('login-err').textContent = 'メールアドレスを入力してください'; return; }
+
+  const member = DATA.members.find(m => m.email && m.email.toLowerCase() === email);
+  if (!member) {
+    $('login-err').textContent = 'このメールアドレスは登録されていません';
+    return;
+  }
+
+  currentUser = member;
+  localStorage.setItem('gantt-user-email', email);
+  applyAuthState();
+}
+
+function doLogout() {
+  currentUser = null;
+  localStorage.removeItem('gantt-user-email');
+  $('login-overlay').style.display = 'flex';
+  $('user-chip').style.display     = 'none';
+  applyEditPermission(false);
+}
+
+function tryAutoLogin() {
+  const saved = localStorage.getItem('gantt-user-email');
+  if (!saved) return false;
+  const member = DATA.members.find(m => m.email && m.email.toLowerCase() === saved.toLowerCase());
+  if (!member) return false;
+  currentUser = member;
+  return true;
+}
+
+function applyAuthState() {
+  $('login-overlay').style.display = 'none';
+  $('login-err').textContent = '';
+
+  const chip = $('user-chip');
+  chip.style.display = 'flex';
+  $('user-chip-name').textContent = currentUser.name;
+  $('user-chip-badge').innerHTML  = currentUser.canEdit
+    ? '<span class="edit-badge">編集可</span>'
+    : '<span class="readonly-badge">閲覧のみ</span>';
+
+  applyEditPermission(currentUser.canEdit);
+}
+
+function applyEditPermission(canEdit) {
+  // 保存ボタン・タスク追加ボタン
+  document.querySelectorAll('.btn.primary, .btn[onclick*="openAddTask"], .btn[onclick*="saveToGitHub"]')
+    .forEach(el => { el.style.display = canEdit ? '' : 'none'; });
+  // 編集タブ
+  ['task-panel','members-panel','settings-panel','milestone-panel'].forEach(p => {
+    const tab = document.querySelector(`.tab[data-panel="${p}"]`);
+    if (tab) tab.style.display = canEdit ? '' : 'none';
+  });
+  // ガントチャートのドラッグ制御フラグ
+  window._editLocked = !canEdit;
+}
+
+// ══════════════════════════════════════════════════════
+//  EDIT LOG
+// ══════════════════════════════════════════════════════
+let _editLogCache = [];
+
+async function appendEditLog(summary) {
+  const { repo, token, branch } = DATA.settings;
+  if (!repo || !token || !currentUser) return;
+
+  const entry = {
+    ts:     new Date().toISOString(),
+    name:   currentUser.name,
+    email:  currentUser.email,
+    summary
+  };
+
+  try {
+    // 既存ログ取得
+    let logs = [];
+    let sha  = '';
+    const r = await fetch(
+      `https://api.github.com/repos/${repo}/contents/data/editlog.json?t=${Date.now()}`,
+      { headers: { Authorization:`Bearer ${token}`, Accept:'application/vnd.github+json', 'Cache-Control':'no-cache' } }
+    );
+    if (r.ok) {
+      const j = await r.json();
+      sha  = j.sha;
+      logs = JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\s/g,'')))));
+    }
+
+    logs.unshift(entry);           // 新しい順
+    if (logs.length > 200) logs = logs.slice(0, 200);  // 最大200件
+
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(logs, null, 2))));
+    const body    = { message:`ログ追記: ${currentUser.name}`, content, branch: branch||'main' };
+    if (sha) body.sha = sha;
+
+    await fetch(
+      `https://api.github.com/repos/${repo}/contents/data/editlog.json`,
+      { method:'PUT', headers:{ Authorization:`Bearer ${token}`,
+          Accept:'application/vnd.github+json', 'Content-Type':'application/json' },
+        body: JSON.stringify(body) }
+    );
+    _editLogCache = logs;
+  } catch(e) {
+    console.warn('[log] Failed to append edit log:', e.message);
+  }
+}
+
+async function loadEditLog() {
+  const { repo, token } = DATA.settings;
+  if (!repo || !token) { $('log-list').innerHTML = '<p style="color:var(--text3)">設定タブでGitHubリポジトリを設定してください</p>'; return; }
+
+  $('log-list').innerHTML = '<p style="color:var(--text3)">読み込み中...</p>';
+  try {
+    const r = await fetch(
+      `https://api.github.com/repos/${repo}/contents/data/editlog.json?t=${Date.now()}`,
+      { headers: { Authorization:`Bearer ${token}`, Accept:'application/vnd.github+json', 'Cache-Control':'no-cache' } }
+    );
+    if (!r.ok) { $('log-list').innerHTML = '<p style="color:var(--text3)">ログがありません（まだ保存されていない可能性があります）</p>'; return; }
+    const j    = await r.json();
+    const logs = JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\s/g,'')))));
+    _editLogCache = logs;
+    renderLogList(logs);
+  } catch(e) {
+    $('log-list').innerHTML = '<p style="color:var(--red)">ログの読み込みに失敗しました: ' + esc(e.message) + '</p>';
+  }
+}
+
+function renderLogList(logs) {
+  if (!logs.length) {
+    $('log-list').innerHTML = '<p style="color:var(--text3)">ログがありません</p>';
+    return;
+  }
+  $('log-list').innerHTML = logs.map(l => {
+    const dt   = new Date(l.ts);
+    const time = dt.toLocaleString('ja-JP', { timeZone:'Asia/Tokyo' });
+    const init = (l.name || '?').charAt(0).toUpperCase();
+    return `<div class="log-entry">
+      <div class="log-avatar">${init}</div>
+      <div class="log-body">
+        <span class="log-name">${esc(l.name)}</span>
+        <span class="log-time">${esc(time)}</span>
+        <div class="log-msg">${esc(l.email)}</div>
+        <div class="log-diff">${esc(l.summary)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openLogPanel() {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  const tab = document.querySelector('[data-panel="log-panel"]');
+  if (tab) tab.classList.add('active');
+  $('log-panel').classList.add('active');
+  loadEditLog();
+}
+
+// ══════════════════════════════════════════════════════
+//  MERGE SAVE（複数人同時編集対応）
+// ══════════════════════════════════════════════════════
+async function mergeAndSave(localData, summary) {
+  const { repo, token, branch } = DATA.settings;
+  if (!repo || !token) return false;
+
+  const targetBranch = branch || 'main';
+  const MAX_RETRY = 4;
+
+  for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
+    try {
+      // ── 最新のリモートデータを取得 ──
+      const r = await fetch(
+        `https://api.github.com/repos/${repo}/contents/data/tasks.json?t=${Date.now()}`,
+        { headers:{ Authorization:`Bearer ${token}`, Accept:'application/vnd.github+json', 'Cache-Control':'no-cache' } }
+      );
+
+      let remoteData = null;
+      let sha = '';
+      if (r.ok) {
+        const j   = await r.json();
+        sha        = j.sha;
+        remoteData = JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\s/g,'')))));
+      } else if (r.status === 404) {
+        remoteData = null;
+      } else if (r.status === 401) {
+        throw new Error('401_CREDENTIALS');
+      } else {
+        throw new Error('fetch失敗: ' + r.status);
+      }
+
+      // ── マージ処理（タスクIDベースで後勝ち） ──
+      let mergedData = localData;
+      if (remoteData) {
+        const remoteTaskMap = {};
+        (remoteData.tasks||[]).forEach(t => { remoteTaskMap[t.id] = t; });
+        const localTaskMap  = {};
+        (localData.tasks||[]).forEach(t  => { localTaskMap[t.id]  = t; });
+
+        // ローカルに存在するタスクはローカル優先（編集者の変更を保持）
+        // リモートにのみ存在するタスクは追加（他ユーザーが追加したタスク）
+        const allIds = new Set([
+          ...Object.keys(remoteTaskMap),
+          ...Object.keys(localTaskMap)
+        ]);
+        const mergedTasks = [];
+        allIds.forEach(id => {
+          if (localTaskMap[id])  mergedTasks.push(localTaskMap[id]);   // ローカル優先
+          else                   mergedTasks.push(remoteTaskMap[id]);  // リモートのみ存在
+        });
+        mergedData = { ...localData, tasks: mergedTasks };
+      }
+
+      // ── 保存 ──
+      const saveData = { ...mergedData, settings: { ...mergedData.settings, token:'' } };
+      const content  = btoa(unescape(encodeURIComponent(JSON.stringify(saveData, null, 2))));
+      const body     = {
+        message: `${currentUser ? currentUser.name : '?'}: ${summary}`,
+        content, branch: targetBranch
+      };
+      if (sha) body.sha = sha;
+
+      const pr = await fetch(
+        `https://api.github.com/repos/${repo}/contents/data/tasks.json`,
+        { method:'PUT', headers:{ Authorization:`Bearer ${token}`,
+            Accept:'application/vnd.github+json', 'Content-Type':'application/json' },
+          body: JSON.stringify(body) }
+      );
+
+      if (pr.ok) {
+        // マージ結果をローカルDATAに反映
+        DATA.tasks = mergedData.tasks;
+        return true;
+      }
+
+      if (pr.status === 409) {
+        if (attempt < MAX_RETRY) {
+          toast(`⏳ 競合検出 → 再マージ中... (${attempt}/${MAX_RETRY})`, 'info');
+          await new Promise(res => setTimeout(res, 1000 * attempt));
+          continue;
+        }
+        throw new Error('409_CONFLICT');
+      }
+      if (pr.status === 401) throw new Error('401_CREDENTIALS');
+      throw new Error('PUT失敗: ' + pr.status);
+
+    } catch(e) {
+      if (e.message === '401_CREDENTIALS') { showCredentialError(); return false; }
+      if (e.message === '409_CONFLICT')    { toast('❌ 競合を解消できませんでした。ページを再読み込みしてください', 'err'); return false; }
+      if (attempt < MAX_RETRY) { await new Promise(res => setTimeout(res, 800 * attempt)); continue; }
+      toast('❌ 保存エラー: ' + e.message, 'err');
+      return false;
+    }
+  }
+  return false;
+}
+
 // ══════════════════════════════════════════════════════
 //  READONLY MODE
 // ══════════════════════════════════════════════════════
@@ -2114,27 +2522,38 @@ document.addEventListener('DOMContentLoaded', async () => {
   const now = new Date(); now.setHours(0,0,0,0);
   viewStart = addDays(now, -7);
 
-  // 閲覧専用モードの場合はGitHubロードをスキップ（データ埋め込み済み）
-  if (!READONLY) {
-    loadSettings();
-    loadLogo();
+  if (READONLY) {
+    // 閲覧専用モード：データ埋め込み済み・ログイン不要
+    renderAll();
+    setDirty(false);
+    setTimeout(() => { $('gantt-body').scrollLeft = Math.max(0, 7*dayW - 60); }, 100);
+    applyReadonlyMode();
+    return;
   }
 
+  // ── 設定・ロゴ読み込み ──
+  loadSettings();
+  loadLogo();
+
+  // ── GitHubからデータ取得（ログイン前でも試みる） ──
+  await loadFromGitHub();
   renderAll();
   setDirty(false);
 
-  // Scroll to today
-  setTimeout(() => {
-    const body = $('gantt-body');
-    body.scrollLeft = Math.max(0, 7*dayW - 60);
-  }, 100);
+  setTimeout(() => { $('gantt-body').scrollLeft = Math.max(0, 7*dayW - 60); }, 100);
 
-  if (!READONLY) {
-    await loadFromGitHub();
-    window.addEventListener('beforeunload', e => {
-      if (isDirty) { e.preventDefault(); e.returnValue=''; }
-    });
+  // ── 自動ログイン試行（members読み込み後に実施） ──
+  if (tryAutoLogin()) {
+    applyAuthState();
+  } else {
+    // ログイン画面を表示（全UIはログイン後に使用可）
+    $('login-overlay').style.display = 'flex';
+    applyEditPermission(false);
   }
+
+  window.addEventListener('beforeunload', e => {
+    if (isDirty) { e.preventDefault(); e.returnValue=''; }
+  });
 
   applyReadonlyMode();
 });

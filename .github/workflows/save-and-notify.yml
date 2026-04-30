@@ -19,17 +19,19 @@ jobs:
     steps:
       - name: Checkout
         uses: actions/checkout@v4
-        with:
-          fetch-depth: 0   # 全履歴取得（gh-pagesブランチ操作に必要）
 
-      - name: Debug
+      - name: Debug info
         env:
           TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
         run: |
-          echo "=== root ==="
+          echo "=== Repository ==="
+          echo "Repo: ${{ github.repository }}"
+          echo "Branch: ${{ github.ref }}"
           ls -la
           echo "=== scripts ==="
           ls -la .github/scripts/
+          echo "=== data ==="
+          ls -la data/
           echo "=== TEAMS_WEBHOOK ==="
           if [ -z "$TEAMS_WEBHOOK" ]; then echo "NOT SET"; else echo "SET (len=${#TEAMS_WEBHOOK})"; fi
 
@@ -40,33 +42,46 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node .github/scripts/notify.js
 
-      - name: Build read-only site
+      - name: Build read-only viewer
         run: node .github/scripts/build-readonly.js
 
-      - name: Verify build output
+      - name: Verify build
         run: |
-          echo "=== _site contents ==="
+          echo "=== _site/ ==="
           ls -lh _site/
-          echo "=== viewer.html READONLY ==="
+          echo "=== READONLY check ==="
           grep 'const READONLY' _site/viewer.html
-          echo "=== index.html READONLY ==="
-          grep 'const READONLY' _site/index.html
+          echo "=== viewer.html size ==="
+          wc -c _site/viewer.html
 
-      # ── gh-pages ブランチに直接 git push ──
-      - name: Deploy to gh-pages branch
+      - name: Deploy viewer to docs/ folder on main branch
         run: |
-          cd _site
+          # docs/ フォルダに viewer.html と index.html をコピー
+          mkdir -p docs/data
 
-          git init
+          cp _site/viewer.html docs/viewer.html
+          cp _site/index.html  docs/index.html
+          cp data/tasks.json   docs/data/tasks.json
+
+          echo "=== docs/ contents ==="
+          ls -lh docs/
+
+          # git設定
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
 
-          git add -A
-          git commit -m "Deploy: $(date '+%Y-%m-%d %H:%M:%S JST' --date='TZ=\"Asia/Tokyo\" now')"
+          # docs/フォルダの変更をコミット
+          git add docs/
+          git diff --staged --stat
 
-          git push --force \
-            "https://x-access-token:${{ secrets.GITHUB_TOKEN }}@github.com/${{ github.repository }}.git" \
-            HEAD:gh-pages
+          # 変更があればコミット＆プッシュ
+          if git diff --staged --quiet; then
+            echo "No changes in docs/ — skipping commit"
+          else
+            git commit -m "Deploy viewer: $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git push origin main
+            echo "=== Pushed docs/ to main ==="
+          fi
 
-          echo "=== Deploy complete ==="
-          echo "URL: https://$(echo '${{ github.repository }}' | cut -d'/' -f1).github.io/$(echo '${{ github.repository }}' | cut -d'/' -f2)/viewer.html"
+          echo "=== Viewer URL ==="
+          echo "https://${{ github.repository_owner }}.github.io/$(echo '${{ github.repository }}' | cut -d'/' -f2)/viewer.html"

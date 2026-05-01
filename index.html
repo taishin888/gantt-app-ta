@@ -917,6 +917,13 @@ let DATA = {
 // 閲覧専用モードフラグ（GitHub Actionsが書き換える）
 const READONLY = false; // __READONLY_FLAG__
 
+// GitHub設定（GitHub Actionsが自動埋め込み。手動変更不要）
+// __GITHUB_CONFIG_START__
+const GITHUB_REPO   = '';   // __GITHUB_REPO__
+const GITHUB_TOKEN  = '';   // __GITHUB_TOKEN__
+const GITHUB_BRANCH = 'main'; // __GITHUB_BRANCH__
+// __GITHUB_CONFIG_END__
+
 // ══════════════════════════════════════════════════════
 //  VIEW STATE
 // ══════════════════════════════════════════════════════
@@ -2090,27 +2097,41 @@ function saveSettings() {
   DATA.settings.webhook = $('cfg-webhook').value.trim();
   DATA.settings.r1      = parseInt($('cfg-r1').value)||3;
   DATA.settings.r2      = parseInt($('cfg-r2').value)||1;
-  const toSave = {...DATA.settings};
-  localStorage.setItem('gantt-cfg', JSON.stringify(toSave));
+  localStorage.setItem('gantt-cfg', JSON.stringify({...DATA.settings}));
   toast('設定を保存しました','ok');
 }
 
 function loadSettings() {
+  // 1. HTMLに埋め込まれた定数を最優先（別PCでも動く）
+  if (typeof GITHUB_REPO  !== 'undefined' && GITHUB_REPO)  DATA.settings.repo   = GITHUB_REPO;
+  if (typeof GITHUB_TOKEN !== 'undefined' && GITHUB_TOKEN) DATA.settings.token  = GITHUB_TOKEN;
+  if (typeof GITHUB_BRANCH!== 'undefined' && GITHUB_BRANCH)DATA.settings.branch = GITHUB_BRANCH;
+
+  // 2. localStorageの設定で上書き（手動入力を優先したい場合）
   const s = localStorage.getItem('gantt-cfg');
-  if (!s) return;
-  try {
-    const cfg = JSON.parse(s);
-    Object.assign(DATA.settings, cfg);
-    $('cfg-repo').value    = cfg.repo    || '';
-    $('cfg-token').value   = cfg.token   || '';
-    $('cfg-branch').value  = cfg.branch  || 'main';
-    $('cfg-webhook').value = cfg.webhook || '';
-    $('cfg-r1').value      = cfg.r1 ?? 3;
-    $('cfg-r2').value      = cfg.r2 ?? 1;
-    // 読み込み後にバリデーション表示
-    const tokenInput = $('cfg-token');
-    if (tokenInput && tokenInput.value) validateToken(tokenInput);
-  } catch(e) {}
+  if (s) {
+    try {
+      const cfg = JSON.parse(s);
+      // 埋め込み定数がある場合はrepo/token/branchはそちらを優先
+      if (!GITHUB_REPO)   DATA.settings.repo    = cfg.repo    || DATA.settings.repo;
+      if (!GITHUB_TOKEN)  DATA.settings.token   = cfg.token   || DATA.settings.token;
+      if (!GITHUB_BRANCH) DATA.settings.branch  = cfg.branch  || DATA.settings.branch;
+      DATA.settings.webhook = cfg.webhook || '';
+      DATA.settings.r1      = cfg.r1 ?? 3;
+      DATA.settings.r2      = cfg.r2 ?? 1;
+    } catch(e) {}
+  }
+
+  // 3. 設定UIに反映
+  if ($('cfg-repo'))    $('cfg-repo').value    = DATA.settings.repo    || '';
+  if ($('cfg-token'))   $('cfg-token').value   = DATA.settings.token   || '';
+  if ($('cfg-branch'))  $('cfg-branch').value  = DATA.settings.branch  || 'main';
+  if ($('cfg-webhook')) $('cfg-webhook').value  = DATA.settings.webhook || '';
+  if ($('cfg-r1'))      $('cfg-r1').value       = DATA.settings.r1 ?? 3;
+  if ($('cfg-r2'))      $('cfg-r2').value       = DATA.settings.r2 ?? 1;
+
+  const tokenInput = $('cfg-token');
+  if (tokenInput && tokenInput.value) validateToken(tokenInput);
 }
 
 async function testGH() {

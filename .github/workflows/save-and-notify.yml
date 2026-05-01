@@ -22,18 +22,15 @@ jobs:
 
       - name: Debug info
         env:
-          TEAMS_WEBHOOK: ${{ secrets.TEAMS_WEBHOOK }}
+          TEAMS_WEBHOOK:    ${{ secrets.TEAMS_WEBHOOK }}
+          GANTT_READ_TOKEN: ${{ secrets.GANTT_READ_TOKEN }}
         run: |
-          echo "=== Repository ==="
-          echo "Repo: ${{ github.repository }}"
-          echo "Branch: ${{ github.ref }}"
+          echo "=== Repository: ${{ github.repository }} ==="
           ls -la
-          echo "=== scripts ==="
-          ls -la .github/scripts/
-          echo "=== data ==="
-          ls -la data/
-          echo "=== TEAMS_WEBHOOK ==="
-          if [ -z "$TEAMS_WEBHOOK" ]; then echo "NOT SET"; else echo "SET (len=${#TEAMS_WEBHOOK})"; fi
+          ls -la .github/scripts/ || echo "no scripts dir"
+          ls -la data/ || echo "no data dir"
+          if [ -z "$TEAMS_WEBHOOK" ];    then echo "TEAMS_WEBHOOK: NOT SET";    else echo "TEAMS_WEBHOOK: SET (len=${#TEAMS_WEBHOOK})"; fi
+          if [ -z "$GANTT_READ_TOKEN" ]; then echo "GANTT_READ_TOKEN: NOT SET"; else echo "GANTT_READ_TOKEN: SET (len=${#GANTT_READ_TOKEN})"; fi
 
       - name: Send Teams notification
         env:
@@ -42,46 +39,54 @@ jobs:
           GITHUB_REPOSITORY: ${{ github.repository }}
         run: node .github/scripts/notify.js
 
-      - name: Build read-only viewer
+      - name: Build viewer and editor
+        env:
+          GITHUB_REPOSITORY:    ${{ github.repository }}
+          GITHUB_DEPLOY_BRANCH: main
+          GANTT_READ_TOKEN:     ${{ secrets.GANTT_READ_TOKEN }}
         run: node .github/scripts/build-readonly.js
 
-      - name: Verify build
+      - name: Verify build output
         run: |
           echo "=== _site/ ==="
           ls -lh _site/
-          echo "=== READONLY check ==="
+          echo "=== viewer.html: READONLY ==="
           grep 'const READONLY' _site/viewer.html
-          echo "=== viewer.html size ==="
-          wc -c _site/viewer.html
+          echo "=== index.html: READONLY ==="
+          grep 'const READONLY' _site/index.html
+          echo "=== index.html: GITHUB_REPO ==="
+          grep 'GITHUB_REPO' _site/index.html | head -3
 
-      - name: Deploy viewer to docs/ folder on main branch
+      - name: Deploy to docs/ folder
         run: |
-          # docs/ フォルダに viewer.html と index.html をコピー
           mkdir -p docs/data
 
           cp _site/viewer.html docs/viewer.html
           cp _site/index.html  docs/index.html
           cp data/tasks.json   docs/data/tasks.json
 
-          echo "=== docs/ contents ==="
-          ls -lh docs/
+          # members.xlsxがあればコピー
+          if [ -f data/members.xlsx ]; then
+            cp data/members.xlsx docs/data/members.xlsx
+            echo "members.xlsx copied"
+          fi
 
-          # git設定
+          echo "=== docs/ ==="
+          ls -lh docs/
+          ls -lh docs/data/
+
           git config user.name  "github-actions[bot]"
           git config user.email "github-actions[bot]@users.noreply.github.com"
-
-          # docs/フォルダの変更をコミット
           git add docs/
           git diff --staged --stat
 
-          # 変更があればコミット＆プッシュ
           if git diff --staged --quiet; then
-            echo "No changes in docs/ — skipping commit"
+            echo "No changes — skipping commit"
           else
-            git commit -m "Deploy viewer: $(date -u '+%Y-%m-%d %H:%M UTC')"
+            git commit -m "Deploy: $(date -u '+%Y-%m-%d %H:%M UTC')"
             git push origin main
-            echo "=== Pushed docs/ to main ==="
+            echo "=== Deploy complete ==="
           fi
 
-          echo "=== Viewer URL ==="
-          echo "https://${{ github.repository_owner }}.github.io/$(echo '${{ github.repository }}' | cut -d'/' -f2)/viewer.html"
+          echo "Viewer URL: https://${{ github.repository_owner }}.github.io/$(echo '${{ github.repository }}' | cut -d'/' -f2)/viewer.html"
+          echo "Editor URL: https://${{ github.repository_owner }}.github.io/$(echo '${{ github.repository }}' | cut -d'/' -f2)/index.html"

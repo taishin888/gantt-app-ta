@@ -1,0 +1,2856 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>プロジェクト ガントチャート</title>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+JP:wght@300;400;500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root {
+  --bg:      #ffffff;
+  --bg2:     #f8f9fb;
+  --bg3:     #f1f3f7;
+  --surface: #ffffff;
+  --border:  #e2e6ed;
+  --border2: #c8d0db;
+  --text:    #1a202c;
+  --text2:   #4a5568;
+  --text3:   #8a95a3;
+  --accent:  #018FC1;
+  --accent2: #01a8e0;
+  --green:   #16a34a;
+  --amber:   #d97706;
+  --red:     #dc2626;
+  --today-bg: rgba(1,143,193,0.08);
+  --font: 'Noto Sans JP', sans-serif;
+  --mono: 'JetBrains Mono', monospace;
+  --radius: 8px;
+  --shadow: 0 2px 16px rgba(0,0,0,0.10);
+  --row-h: 38px;
+  --left-w: 360px;
+  --day-w: 32px;
+}
+* { box-sizing: border-box; margin: 0; padding: 0; }
+body { font-family: var(--font); background: var(--bg); color: var(--text);
+       height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+/* ── Top Bar ── */
+#topbar {
+  height: 56px; background: #fff;
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: center; gap: 10px;
+  padding: 0 16px; flex-shrink: 0; z-index: 100;
+  box-shadow: 0 1px 4px rgba(0,0,0,0.06);
+}
+
+/* ── ロゴエリア ── */
+#logo-area { display: flex; align-items: center; gap: 10px; margin-right: auto; min-width: 0; }
+
+#logo-wrap {
+  width: 36px; height: 36px; border-radius: 8px;
+  border: 1.5px dashed var(--border2);
+  display: flex; align-items: center; justify-content: center;
+  overflow: visible; flex-shrink: 0; position: relative;
+  cursor: pointer; transition: border-color .15s, background .15s;
+}
+#logo-wrap:hover { border-color: var(--accent); background: var(--bg3); }
+#logo-wrap input[type="file"] {
+  position: absolute; inset: 0; opacity: 0; cursor: pointer; width: 100%; height: 100%;
+}
+#logo-img {
+  width: 100%; height: 100%; object-fit: contain; border-radius: 6px;
+  display: none; pointer-events: none;
+}
+#logo-icon { font-size: 18px; color: var(--text3); pointer-events: none; transition: opacity .15s; }
+.has-logo #logo-icon { display: none; }
+.has-logo #logo-img  { display: block; }
+.has-logo { border-style: solid; border-color: var(--border); }
+
+#logo-hint {
+  position: absolute; top: calc(100% + 6px); left: 50%; transform: translateX(-50%);
+  background: #1a202c; color: #fff; font-size: 10px; white-space: nowrap;
+  padding: 3px 8px; border-radius: 4px;
+  opacity: 0; pointer-events: none; transition: opacity .15s; z-index: 300;
+}
+#logo-wrap:hover #logo-hint { opacity: 1; }
+
+#app-title { font-size: 15px; font-weight: 700; color: var(--text); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+#app-title span { color: var(--accent); }
+
+#save-status { font-size: 11px; color: var(--text3); font-family: var(--mono); white-space: nowrap; }
+
+.btn {
+  height: 32px; padding: 0 14px;
+  border-radius: var(--radius); border: 1px solid var(--border2);
+  background: var(--surface); color: var(--text);
+  font-family: var(--font); font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: all 0.15s;
+  display: inline-flex; align-items: center; gap: 6px;
+  white-space: nowrap;
+}
+.btn:hover { background: var(--bg3); border-color: var(--accent); }
+.btn.primary { background: var(--accent); border-color: var(--accent); color: #fff; }
+.btn.primary:hover { filter: brightness(1.1); }
+.btn.danger { border-color: var(--red); color: var(--red); }
+.btn.danger:hover { background: rgba(220,38,38,0.07); }
+.btn.sm { height: 26px; padding: 0 10px; font-size: 12px; }
+
+/* ── Tabs ── */
+#tabs {
+  height: 44px; background: var(--bg2);
+  border-bottom: 1px solid var(--border);
+  display: flex; align-items: flex-end;
+  padding: 0 16px; flex-shrink: 0; gap: 2px;
+}
+.tab {
+  height: 36px; padding: 0 16px;
+  border-radius: var(--radius) var(--radius) 0 0;
+  border: 1px solid transparent; border-bottom: none;
+  background: transparent; color: var(--text2);
+  font-family: var(--font); font-size: 13px; font-weight: 500;
+  cursor: pointer; transition: all 0.15s;
+}
+.tab:hover { color: var(--text); background: #eaecf2; }
+.tab.active { background: #fff; color: var(--text); border-color: var(--border); font-weight: 600; }
+
+/* ── Main ── */
+#main { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+.panel { display: none; flex: 1; overflow: hidden; flex-direction: column; }
+.panel.active { display: flex; }
+
+/* ══════════════ GANTT ══════════════ */
+#gantt-panel { flex-direction: column; }
+#gantt-container { flex: 1; display: flex; flex-direction: column; overflow: hidden; }
+
+/* Gantt header (fixed) */
+#gantt-header {
+  display: flex; flex-shrink: 0;
+  background: var(--bg2); border-bottom: 2px solid var(--border);
+  user-select: none; overflow: hidden;
+}
+#gh-left {
+  width: var(--left-w); flex-shrink: 0;
+  display: flex; border-right: 2px solid var(--border);
+}
+.gh-col {
+  height: 48px; display: flex; align-items: center;
+  padding: 0 10px; font-size: 10px; font-weight: 700;
+  color: var(--text3); text-transform: uppercase; letter-spacing: 0.08em;
+  border-right: 1px solid var(--border);
+}
+.gh-col.group { width: 90px; }
+.gh-col.task  { flex: 1; }
+.gh-col.owner { width: 90px; }
+
+#gh-right { flex: 1; overflow: hidden; display: flex; flex-direction: column; }
+#month-row { display: flex; height: 24px; border-bottom: 1px solid var(--border); }
+.month-label {
+  display: flex; align-items: center; padding: 0 8px;
+  font-size: 10px; font-weight: 700; color: var(--text2);
+  border-right: 1px solid var(--border); white-space: nowrap;
+  background: var(--bg2);
+}
+#day-row { display: flex; height: 24px; }
+.day-cell {
+  width: var(--day-w); flex-shrink: 0;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 9px; font-family: var(--mono); color: var(--text3);
+  border-right: 1px solid var(--border);
+}
+.day-cell.weekend { background: rgba(255,255,255,0.015); }
+.day-cell.holiday { color: var(--red); }
+.day-cell.today-hdr { background: var(--today-bg); color: var(--accent2); font-weight: 700; }
+
+/* Scrollable body */
+#gantt-body {
+  flex: 1; overflow: auto; position: relative;
+  scrollbar-width: thin; scrollbar-color: var(--border2) transparent;
+}
+#gantt-body::-webkit-scrollbar { width: 6px; height: 6px; }
+#gantt-body::-webkit-scrollbar-thumb { background: var(--border2); border-radius: 3px; }
+
+/* Inner row layout */
+#gantt-rows { display: flex; min-width: max-content; }
+#left-col {
+  width: var(--left-w); flex-shrink: 0;
+  border-right: 2px solid var(--border);
+  position: sticky; left: 0; z-index: 10; background: var(--bg);
+}
+#right-col { flex: 1; position: relative; }
+
+/* Rows */
+.g-row {
+  height: var(--row-h); display: flex; align-items: center;
+  border-bottom: 1px solid var(--border);
+}
+.g-row.group-header { background: #f4f6fa; }
+.g-row:not(.group-header):hover { background: rgba(37,99,235,0.04); }
+
+.lc-group {
+  width: 90px; padding: 0 10px;
+  border-right: 1px solid var(--border);
+  font-size: 11px; font-weight: 700;
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap;
+  flex-shrink: 0;
+}
+.lc-task {
+  flex: 1; padding: 0 8px;
+  border-right: 1px solid var(--border);
+  font-size: 12px; display: flex; align-items: center; gap: 6px;
+  overflow: hidden; cursor: pointer;
+}
+.lc-task:hover { color: var(--accent); }
+.lc-task .dot { width: 8px; height: 8px; border-radius: 50%; flex-shrink: 0; }
+.lc-task .name { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.lc-owner {
+  width: 90px; padding: 0 8px;
+  font-size: 11px; color: var(--text3);
+  overflow: hidden; text-overflow: ellipsis; white-space: nowrap; flex-shrink: 0;
+}
+
+/* Right grid row */
+.grid-row {
+  height: var(--row-h); display: flex; position: relative;
+  border-bottom: 1px solid var(--border);
+}
+.grid-row.group-header { background: #f4f6fa; }
+.grid-cell {
+  width: var(--day-w); flex-shrink: 0;
+  border-right: 1px solid #eaecf1;
+}
+.grid-cell.weekend { background: #f8f9fc; }
+.grid-cell.holiday { background: rgba(220,38,38,0.05); }
+.grid-cell.today-col { background: var(--today-bg); }
+
+/* Today line */
+#today-line {
+  position: absolute; top: 0; bottom: 0; width: 2px;
+  background: var(--accent); pointer-events: none; z-index: 6;
+  box-shadow: 0 0 8px rgba(59,130,246,0.5);
+}
+.today-tip {
+  position: absolute; top: 2px; left: 50%;
+  transform: translateX(-50%);
+  background: var(--accent); color: #fff;
+  font-size: 9px; font-weight: 700; font-family: var(--mono);
+  padding: 1px 5px; border-radius: 3px; white-space: nowrap;
+}
+
+/* Task bars — placed inside each .grid-row */
+.task-bar {
+  position: absolute; top: 5px; height: 28px;
+  border-radius: 6px; cursor: grab;
+  display: flex; align-items: center; overflow: hidden;
+  user-select: none; z-index: 3;
+  transition: box-shadow 0.15s, filter 0.15s;
+  min-width: 6px;
+}
+.task-bar:hover { box-shadow: 0 2px 12px rgba(0,0,0,0.5); filter: brightness(1.12); z-index: 8; }
+.task-bar:active { cursor: grabbing; }
+.task-bar.is-dragging { opacity: .85; z-index: 20; box-shadow: 0 6px 24px rgba(0,0,0,.6); }
+.task-bar .prog {
+  position: absolute; left: 0; top: 0; bottom: 0;
+  background: rgba(255,255,255,0.18); pointer-events: none;
+  border-radius: 6px 0 0 6px;
+}
+.task-bar .bar-label {
+  padding: 0 8px; font-size: 10px; font-weight: 600;
+  color: rgba(255,255,255,0.92); white-space: nowrap;
+  overflow: hidden; text-overflow: ellipsis; pointer-events: none;
+  position: relative; z-index: 1;
+}
+.task-bar .rhandle {
+  position: absolute; right: 0; top: 0; bottom: 0; width: 7px;
+  background: rgba(255,255,255,0.22); cursor: ew-resize;
+  border-radius: 0 6px 6px 0; opacity: 0; transition: opacity .15s;
+}
+.task-bar:hover .rhandle { opacity: 1; }
+
+/* Dep arrows SVG overlay */
+#dep-svg {
+  position: absolute; top: 0; left: 0;
+  pointer-events: none; z-index: 5; overflow: visible;
+}
+
+/* Controls bar */
+#gantt-controls {
+  display: flex; align-items: center; gap: 8px;
+  padding: 5px 12px; background: var(--bg2);
+  border-top: 1px solid var(--border); flex-shrink: 0;
+}
+#gantt-controls label { font-size: 11px; color: var(--text3); }
+#zoom-range { width: 100px; accent-color: var(--accent); }
+.period-nav { display: flex; align-items: center; gap: 4px; }
+.period-nav button {
+  width: 26px; height: 26px; border-radius: 6px;
+  border: 1px solid var(--border); background: #fff;
+  color: var(--text2); cursor: pointer; font-size: 14px;
+  display: flex; align-items: center; justify-content: center;
+}
+.period-nav button:hover { border-color: var(--accent); color: var(--accent); background: #e6f6fb; }
+.period-nav span { font-size: 12px; color: var(--text2); font-family: var(--mono);
+                   min-width: 130px; text-align: center; }
+
+/* ══════════════ EDIT PANELS ══════════════ */
+.scroll-panel { flex: 1; overflow-y: auto; padding: 20px 24px;
+                scrollbar-width: thin; scrollbar-color: var(--border2) transparent; }
+.scroll-panel h2 { font-size: 17px; font-weight: 700; margin-bottom: 18px; }
+
+.section-card {
+  background: var(--bg2); border: 1px solid var(--border);
+  border-radius: 10px; padding: 18px; margin-bottom: 18px;
+}
+.section-card-header {
+  display: flex; align-items: center; justify-content: space-between; margin-bottom: 14px;
+}
+.section-card-header h3 { font-size: 13px; font-weight: 700; color: var(--text2); }
+
+.data-table { width: 100%; border-collapse: collapse; }
+.data-table th {
+  text-align: left; padding: 7px 10px;
+  font-size: 10px; font-weight: 700; color: var(--text3);
+  text-transform: uppercase; letter-spacing: .07em;
+  border-bottom: 1px solid var(--border);
+}
+.data-table td {
+  padding: 5px 8px; border-bottom: 1px solid var(--border);
+  font-size: 13px; vertical-align: middle;
+}
+.data-table tr:last-child td { border-bottom: none; }
+.data-table tr:hover td { background: rgba(37,99,235,0.04); }
+
+/* Form inputs */
+input[type="text"], input[type="date"], input[type="email"],
+input[type="number"], select, textarea {
+  background: var(--bg3); border: 1px solid var(--border);
+  border-radius: 6px; color: var(--text);
+  font-family: var(--font); font-size: 13px;
+  padding: 6px 10px; outline: none;
+  transition: border-color .15s;
+}
+input:focus, select:focus, textarea:focus { border-color: var(--accent); }
+input[type="color"] {
+  width: 32px; height: 28px; border-radius: 6px;
+  border: 1px solid var(--border); padding: 2px;
+  cursor: pointer; background: var(--bg3);
+}
+select {
+  appearance: none; padding-right: 26px;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='12' height='12' viewBox='0 0 24 24' fill='none' stroke='%2364748b' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 7px center;
+}
+.form-row { margin-bottom: 12px; }
+.form-row label { display: block; font-size: 11px; font-weight: 600; color: var(--text2); margin-bottom: 5px; }
+.form-row input, .form-row select, .form-row textarea { width: 100%; }
+.form-row textarea { resize: vertical; min-height: 70px; }
+.form-inline { display: flex; align-items: center; gap: 8px; }
+.form-inline select { flex: 1; }
+
+.color-row { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; }
+.preset-dot {
+  width: 22px; height: 22px; border-radius: 50%;
+  cursor: pointer; border: 2px solid transparent; transition: all .15s; flex-shrink: 0;
+}
+.preset-dot:hover, .preset-dot.sel { border-color: #1a202c; transform: scale(1.18); box-shadow: 0 0 0 2px #fff; }
+
+/* Chip */
+.chip {
+  display: inline-flex; align-items: center;
+  padding: 2px 8px; border-radius: 20px; font-size: 11px; font-weight: 600;
+}
+.chip.done    { background: rgba(34,197,94,.15); color: var(--green); }
+.chip.doing   { background: rgba(1,143,193,.12); color: var(--accent2); }
+.chip.todo    { background: rgba(100,116,139,.15); color: var(--text3); }
+.chip.delayed { background: rgba(239,68,68,.15); color: var(--red); }
+
+/* Settings */
+.setting-row {
+  display: flex; align-items: center; gap: 10px;
+  padding: 10px 0; border-bottom: 1px solid var(--border);
+}
+.setting-row:last-child { border-bottom: none; }
+.setting-row label { min-width: 200px; font-size: 13px; color: var(--text2); flex-shrink: 0; }
+.setting-row input { flex: 1; }
+
+/* ── Modal ── */
+#modal-overlay {
+  display: none; position: fixed; inset: 0;
+  background: rgba(0,0,0,.45); z-index: 1000;
+  align-items: center; justify-content: center;
+}
+#modal-overlay.open { display: flex; }
+#modal-box {
+  background: #fff; border: 1px solid var(--border);
+  border-radius: 12px; padding: 26px;
+  width: 520px; max-width: 95vw;
+  max-height: 88vh; overflow-y: auto;
+  box-shadow: 0 8px 40px rgba(0,0,0,0.14);
+}
+#modal-box h3 { font-size: 15px; font-weight: 700; margin-bottom: 18px; color: var(--text); }
+.modal-footer { display: flex; justify-content: flex-end; gap: 8px; margin-top: 20px; padding-top: 16px; border-top: 1px solid var(--border); }
+
+/* ── Toast ── */
+#toasts {
+  position: fixed; top: 72px; right: 14px;
+  display: flex; flex-direction: column; gap: 8px; z-index: 2000; pointer-events: none;
+}
+.toast {
+  background: #fff; border: 1px solid var(--border);
+  border-radius: var(--radius); padding: 11px 15px;
+  font-size: 13px; color: var(--text);
+  box-shadow: 0 4px 20px rgba(0,0,0,0.12);
+  display: flex; align-items: center; gap: 8px;
+  animation: tIn .25s ease; pointer-events: auto;
+}
+.toast.ok  { border-left: 4px solid var(--green); }
+.toast.err { border-left: 4px solid var(--red); }
+.toast.out { animation: tOut .25s ease forwards; }
+@keyframes tIn  { from { transform: translateX(110%); opacity: 0; } to { transform: none; opacity: 1; } }
+@keyframes tOut { from { transform: none; opacity: 1; } to { transform: translateX(110%); opacity: 0; } }
+
+/* ── Tooltip ── */
+#tip {
+  position: fixed; z-index: 900;
+  background: #fff; border: 1px solid var(--border);
+  border-radius: 8px; padding: 10px 14px;
+  font-size: 12px; pointer-events: none; display: none;
+  box-shadow: 0 4px 20px rgba(0,0,0,0.12); min-width: 170px;
+}
+#tip .tip-name { font-weight: 700; margin-bottom: 4px; color: var(--text); }
+#tip .tip-row  { color: var(--text2); margin-top: 2px; font-size: 11px; }
+
+/* ── Milestone line ── */
+.ms-line {
+  position: absolute; top: 0; bottom: 0; width: 2px;
+  pointer-events: none; z-index: 7;
+}
+.ms-line:hover { z-index: 15; }
+.ms-label {
+  position: absolute; top: 2px; left: 4px;
+  font-size: 9px; font-weight: 700; font-family: var(--mono);
+  white-space: nowrap; padding: 2px 5px; border-radius: 3px;
+  color: #fff; pointer-events: none;
+}
+.ms-diamond {
+  position: absolute; top: -5px; left: 50%;
+  transform: translateX(-50%) rotate(45deg);
+  width: 10px; height: 10px;
+  pointer-events: none;
+}
+
+/* ── Owner tags (multiple) ── */
+.owner-tags { display:flex; flex-wrap:wrap; gap:2px; }
+.owner-tag {
+  display:inline-flex; align-items:center;
+  padding:1px 5px; border-radius:10px;
+  font-size:10px; font-weight:600;
+  background:rgba(1,143,193,0.12); color:var(--accent);
+  white-space:nowrap;
+}
+.lc-owner { display:flex; flex-wrap:wrap; gap:2px; align-items:center; }
+
+/* ── Multi-select owners ── */
+.owner-checklist {
+  display:flex; flex-direction:column; gap:6px;
+  max-height:160px; overflow-y:auto;
+  border:1px solid var(--border); border-radius:6px; padding:8px;
+  background:var(--bg3);
+}
+.owner-check-item {
+  display:flex; align-items:center; gap:8px;
+  font-size:13px; cursor:pointer;
+}
+.owner-check-item input[type=checkbox] { width:15px; height:15px; accent-color:var(--accent); }
+
+
+/* ── Login overlay ── */
+#login-overlay {
+  position: fixed; inset: 0; z-index: 9000;
+  background: #f8f9fb;
+  display: flex; align-items: center; justify-content: center;
+}
+#login-box {
+  background: #fff; border: 1px solid var(--border);
+  border-radius: 16px; padding: 40px 48px;
+  width: 380px; box-shadow: 0 8px 40px rgba(0,0,0,0.12);
+  text-align: center;
+}
+#login-box h2 { font-size: 22px; font-weight: 800; margin-bottom: 6px; }
+#login-box p  { font-size: 13px; color: var(--text2); margin-bottom: 28px; }
+#login-email  { width: 100%; margin-bottom: 12px; padding: 10px 14px; font-size: 14px; }
+#login-btn    { width: 100%; height: 42px; font-size: 14px; font-weight: 700; }
+#login-err    { color: var(--red); font-size: 12px; margin-top: 10px; min-height: 18px; }
+
+/* ── User chip in topbar ── */
+#user-chip {
+  display: flex; align-items: center; gap: 8px;
+  padding: 4px 12px; border-radius: 20px;
+  background: rgba(1,143,193,0.1); border: 1px solid rgba(1,143,193,0.2);
+  font-size: 12px; font-weight: 600; color: var(--accent);
+  cursor: pointer; position: relative;
+}
+#user-chip:hover { background: rgba(1,143,193,0.18); }
+#user-menu {
+  position: absolute; top: calc(100% + 6px); right: 0;
+  background: #fff; border: 1px solid var(--border);
+  border-radius: 8px; padding: 6px;
+  box-shadow: var(--shadow); z-index: 200;
+  min-width: 160px; display: none;
+}
+#user-chip:hover #user-menu, #user-menu:hover { display: block; }
+.user-menu-item {
+  padding: 8px 12px; border-radius: 6px;
+  font-size: 12px; cursor: pointer; color: var(--text);
+}
+.user-menu-item:hover { background: var(--bg3); }
+.readonly-badge {
+  display: inline-flex; align-items: center;
+  padding: 1px 7px; border-radius: 10px;
+  background: rgba(239,68,68,0.1); color: var(--red);
+  font-size: 10px; font-weight: 700;
+}
+.edit-badge {
+  display: inline-flex; align-items: center;
+  padding: 1px 7px; border-radius: 10px;
+  background: rgba(34,197,94,0.1); color: var(--green);
+  font-size: 10px; font-weight: 700;
+}
+
+/* ── Edit log panel ── */
+#log-panel .log-entry {
+  padding: 12px 0; border-bottom: 1px solid var(--border);
+  display: flex; gap: 12px; align-items: flex-start;
+}
+#log-panel .log-avatar {
+  width: 32px; height: 32px; border-radius: 50%;
+  background: var(--accent); color: #fff;
+  display: flex; align-items: center; justify-content: center;
+  font-size: 13px; font-weight: 700; flex-shrink: 0;
+}
+#log-panel .log-body  { flex: 1; min-width: 0; }
+#log-panel .log-name  { font-weight: 700; font-size: 13px; }
+#log-panel .log-time  { font-size: 11px; color: var(--text3); margin-left: 8px; font-family: var(--mono); }
+#log-panel .log-msg   { font-size: 12px; color: var(--text2); margin-top: 2px; }
+#log-panel .log-diff  { font-size: 11px; color: var(--text3); margin-top: 4px;
+  font-family: var(--mono); background: var(--bg3); padding: 4px 8px; border-radius: 4px; }
+
+
+</style>
+</head>
+<body>
+
+<!-- Login Overlay -->
+<div id="login-overlay">
+  <div id="login-box">
+    <div style="font-size:48px;margin-bottom:12px">📊</div>
+    <h2>ガントチャート</h2>
+    <p>メールアドレスでログインしてください</p>
+    <input type="email" id="login-email" placeholder="your@email.com"
+           onkeydown="if(event.key==='Enter')doLogin()">
+    <button class="btn primary" id="login-btn" onclick="doLogin()">ログイン</button>
+    <div id="login-err"></div>
+  </div>
+</div>
+
+<!-- Top Bar -->
+<div id="topbar">
+  <!-- ロゴ + タイトル -->
+  <div id="logo-area">
+    <div id="logo-wrap" title="クリックしてロゴ画像をアップロード">
+      <img id="logo-img" alt="logo">
+      <span id="logo-icon">🏢</span>
+      <input type="file" id="logo-input" accept="image/*" onchange="handleLogoUpload(this)">
+      <div id="logo-hint">ロゴをアップロード</div>
+    </div>
+    <div id="app-title">Project <span>Gantt</span></div>
+  </div>
+
+  <div class="period-nav">
+    <button onclick="shiftPeriod(-1)" title="前の期間">‹</button>
+    <span id="period-label"></span>
+    <button onclick="shiftPeriod(1)"  title="次の期間">›</button>
+  </div>
+  <button class="btn" onclick="jumpToday()">Today</button>
+  <button class="btn" onclick="openAddTask()">+ Task</button>
+  <button class="btn primary" onclick="saveToGitHub()">Save &amp; Notify</button>
+  <span id="save-status">起動中...</span>
+  <div id="user-chip" style="display:none">
+    <span id="user-chip-name">—</span>
+    <span id="user-chip-badge"></span>
+    <div id="user-menu">
+      <div class="user-menu-item" onclick="openLogPanel()">📋 編集ログ</div>
+      <div class="user-menu-item" onclick="doLogout()" style="color:var(--red)">🚪 ログアウト</div>
+    </div>
+  </div>
+</div>
+
+<!-- Tabs -->
+<div id="tabs">
+  <button class="tab active" data-panel="gantt-panel">📅 ガントチャート</button>
+  <button class="tab"        data-panel="task-panel">✏️ タスク編集</button>
+  <button class="tab"        data-panel="members-panel">👥 メンバー</button>
+  <button class="tab"        data-panel="milestone-panel">🎯 マイルストーン</button>
+  <button class="tab"        data-panel="log-panel">📋 ログ</button>
+  <button class="tab"        data-panel="settings-panel">⚙️ 設定</button>
+</div>
+
+<!-- Main -->
+<div id="main">
+
+  <!-- ══ GANTT ══ -->
+  <div id="gantt-panel" class="panel active">
+    <div id="gantt-container">
+      <div id="gantt-header">
+        <div id="gh-left">
+          <div class="gh-col group">グループ</div>
+          <div class="gh-col task">タスク名</div>
+          <div class="gh-col owner">担当者</div>
+        </div>
+        <div id="gh-right">
+          <div id="month-row"></div>
+          <div id="day-row"></div>
+        </div>
+      </div>
+
+      <div id="gantt-body">
+        <div id="gantt-rows">
+          <div id="left-col"></div>
+          <div id="right-col">
+            <svg id="dep-svg"></svg>
+          </div>
+        </div>
+      </div>
+
+      <div id="gantt-controls">
+        <div class="period-nav">
+          <button onclick="shiftPeriod(-1)">‹</button>
+          <span id="period-label2"></span>
+          <button onclick="shiftPeriod(1)">›</button>
+        </div>
+        <label>ズーム</label>
+        <input type="range" id="zoom-range" min="18" max="64" value="32"
+               oninput="setDayW(+this.value)">
+        <label id="zoom-val">32px/日</label>
+        <span style="flex:1"></span>
+        <label>表示幅</label>
+        <select id="period-days" onchange="setViewDays(+this.value)">
+          <option value="30">1ヶ月</option>
+          <option value="60">2ヶ月</option>
+          <option value="90" selected>3ヶ月</option>
+          <option value="180">6ヶ月</option>
+          <option value="365">12ヶ月</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ TASK EDIT ══ -->
+  <div id="task-panel" class="panel">
+    <div class="scroll-panel">
+      <h2>タスク・グループ編集</h2>
+
+      <div class="section-card">
+        <div class="section-card-header">
+          <h3>グループ一覧</h3>
+          <button class="btn sm" onclick="openAddGroup()">+ Add Group</button>
+        </div>
+        <table class="data-table">
+          <thead><tr><th>グループ名</th><th>色</th><th>説明</th><th>操作</th></tr></thead>
+          <tbody id="group-tbody"></tbody>
+        </table>
+      </div>
+
+      <div class="section-card">
+        <div class="section-card-header">
+          <h3>タスク一覧</h3>
+          <button class="btn sm" onclick="openAddTask()">+ Add Task</button>
+        </div>
+        <table class="data-table" id="task-table">
+          <thead>
+            <tr>
+              <th>グループ</th><th>タスク名</th><th>担当者</th>
+              <th>開始日</th><th>終了日</th>
+              <th>色</th><th>進捗%</th><th>ステータス</th><th>依存</th><th>操作</th>
+            </tr>
+          </thead>
+          <tbody id="task-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ MEMBERS ══ -->
+  <div id="members-panel" class="panel">
+    <div class="scroll-panel">
+      <h2>メンバー管理</h2>
+
+      <!-- Excelインポートカード -->
+      <div class="section-card">
+        <div class="section-card-header">
+          <h3>📊 Excelメンバーリスト（GitHub連携）</h3>
+          <button class="btn sm" onclick="downloadMemberTemplate()">📥 テンプレートDL</button>
+        </div>
+        <p style="font-size:12px;color:var(--text3);margin-bottom:16px">
+          GitHubリポジトリの
+          <code style="background:var(--bg3);padding:2px 6px;border-radius:4px">data/members.xlsx</code>
+          を読み書きします。Excelの列構成：
+          <code style="background:var(--bg3);padding:2px 6px;border-radius:4px;font-size:11px">名前 / メールアドレス / TeamsID / 役割 / 編集権限（○または×）</code>
+        </p>
+
+        <div style="display:flex;align-items:center;gap:10px;flex-wrap:wrap">
+          <button class="btn" onclick="loadMembersFromGitHub()">🔄 GitHubから読み込む</button>
+          <button class="btn" onclick="uploadMembersToGitHub()">☁️ 現在のリストをGitHubへ保存</button>
+          <span id="xlsx-gh-status" style="font-size:11px;color:var(--text3)"></span>
+        </div>
+
+        <!-- プレビュー（読み込み後に表示） -->
+        <div id="xlsx-preview" style="display:none;margin-top:16px;border-top:1px solid var(--border);padding-top:16px">
+          <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+            <span id="xlsx-preview-label" style="font-size:12px;font-weight:600;color:var(--text2)"></span>
+            <div style="display:flex;gap:8px">
+              <button class="btn sm" onclick="document.getElementById('xlsx-preview').style.display='none'">キャンセル</button>
+              <button class="btn sm primary" onclick="applyXlsxImport()">✅ この内容で反映する</button>
+            </div>
+          </div>
+          <table class="data-table">
+            <thead><tr><th>名前</th><th>メール</th><th>Teams ID</th><th>役割</th><th>編集権限</th></tr></thead>
+            <tbody id="xlsx-preview-tbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <!-- 現在のメンバーリスト -->
+      <div class="section-card">
+        <div class="section-card-header">
+          <h3>現在のメンバーリスト</h3>
+          <button class="btn sm" onclick="openAddMember()">＋ 手動追加</button>
+        </div>
+        <table class="data-table">
+          <thead><tr><th>名前</th><th>メール</th><th>Teams ID</th><th>役割</th><th>編集権限</th><th>操作</th></tr></thead>
+          <tbody id="member-tbody"></tbody>
+        </table>
+      </div>
+
+      <!-- 祝日管理 -->
+      <div class="section-card">
+        <h3 style="margin-bottom:12px">祝日管理</h3>
+        <div style="display:flex;gap:8px;margin-bottom:14px;flex-wrap:wrap">
+          <input type="date" id="hol-date" style="width:160px">
+          <input type="text" id="hol-name" placeholder="祝日名" style="width:180px">
+          <button class="btn sm" onclick="addHoliday()">＋ 追加</button>
+        </div>
+        <table class="data-table">
+          <thead><tr><th>日付</th><th>祝日名</th><th>操作</th></tr></thead>
+          <tbody id="holiday-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ══ MILESTONE ══ -->
+  <div id="milestone-panel" class="panel">
+    <div class="scroll-panel">
+      <h2>マイルストーン管理</h2>
+      <div class="section-card">
+        <div class="section-card-header">
+          <h3>マイルストーン一覧</h3>
+          <button class="btn sm" onclick="openAddMilestone()">+ Add</button>
+        </div>
+        <p style="font-size:12px;color:var(--text3);margin-bottom:12px">
+          ガントチャート上に今日ラインと同様の縦線とラベルで表示されます。
+        </p>
+        <table class="data-table">
+          <thead>
+            <tr><th>アイコン</th><th>マイルストーン名</th><th>日付</th><th>色</th><th>操作</th></tr>
+          </thead>
+          <tbody id="milestone-tbody"></tbody>
+        </table>
+      </div>
+    </div>
+  </div>
+
+
+  <!-- ══ LOG ══ -->
+  <div id="log-panel" class="panel">
+    <div class="scroll-panel">
+      <h2>編集ログ</h2>
+      <div class="section-card">
+        <div class="section-card-header">
+          <h3>変更履歴</h3>
+          <button class="btn sm" onclick="loadEditLog()">🔄 更新</button>
+        </div>
+        <div id="log-list"><p style="color:var(--text3);font-size:13px">読み込み中...</p></div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ══ SETTINGS ══ -->
+  <div id="settings-panel" class="panel">
+    <div class="scroll-panel">
+      <h2>設定・連携</h2>
+
+      <div class="section-card">
+        <div class="section-card-header"><h3>GitHub 設定</h3></div>
+        <div class="setting-row">
+          <label>リポジトリ (owner/repo)</label>
+          <input type="text" id="cfg-repo" placeholder="例: your-org/gantt-data">
+        </div>
+        <div class="setting-row">
+          <label>Personal Access Token</label>
+          <div style="flex:1;display:flex;gap:6px;align-items:center">
+            <input type="password" id="cfg-token" placeholder="ghp_xxxx... または github_pat_xxxx..."
+                   style="flex:1" autocomplete="off"
+                   oninput="validateToken(this)">
+            <button class="btn sm" onclick="toggleTokenVisible()" id="token-eye" title="表示/非表示">👁</button>
+          </div>
+        </div>
+        <div id="token-hint" style="font-size:11px;padding:4px 0 0 200px;display:none"></div>
+        <div class="setting-row">
+          <label>ブランチ</label>
+          <input type="text" id="cfg-branch" value="main" style="width:120px">
+        </div>
+        <div style="margin-top:14px;display:flex;gap:8px">
+          <button class="btn" onclick="testGH()">接続テスト</button>
+          <button class="btn primary" onclick="saveSettings()">設定保存</button>
+        </div>
+      </div>
+
+      <div class="section-card">
+        <div class="section-card-header"><h3>Teams Webhook</h3></div>
+        <div class="setting-row">
+          <label>Incoming Webhook URL</label>
+          <input type="text" id="cfg-webhook" placeholder="https://...webhook.office.com/...">
+        </div>
+        <p style="font-size:11px;color:var(--text3);margin-top:8px">
+          通知はGitHub Actions経由で送信されます。このURLをGitHub Secretsの <code style="background:var(--bg3);padding:1px 5px;border-radius:4px">TEAMS_WEBHOOK</code> に登録してください。
+        </p>
+      </div>
+
+      <div class="section-card">
+        <div class="section-card-header"><h3>リマインダー設定</h3></div>
+        <div class="setting-row">
+          <label>期限X日前（1回目）</label>
+          <input type="number" id="cfg-r1" value="3" style="width:70px"> 日前
+        </div>
+        <div class="setting-row">
+          <label>期限X日前（2回目）</label>
+          <input type="number" id="cfg-r2" value="1" style="width:70px"> 日前
+        </div>
+      </div>
+
+      <div class="section-card">
+        <div class="section-card-header"><h3>ワークフローファイル</h3></div>
+        <p style="font-size:12px;color:var(--text3);margin-bottom:12px">GitHub Actions用のYAMLファイルをダウンロードしてリポジトリに配置してください。</p>
+        <button class="btn" onclick="downloadWorkflows()">📥 ワークフローをダウンロード</button>
+      </div>
+    </div>
+  </div>
+
+</div><!-- /main -->
+
+<!-- Modal -->
+<div id="modal-overlay">
+  <div id="modal-box">
+    <h3 id="modal-title">—</h3>
+    <div id="modal-body"></div>
+    <div class="modal-footer">
+      <button class="btn" id="modal-cancel" onclick="closeModal()">キャンセル</button>
+      <button class="btn primary" id="modal-ok" onclick="handleModalOk()">保存</button>
+    </div>
+  </div>
+</div>
+
+<!-- Tooltip -->
+<div id="tip">
+  <div class="tip-name" id="tip-name"></div>
+  <div class="tip-row" id="tip-dates"></div>
+  <div class="tip-row" id="tip-owner"></div>
+  <div class="tip-row" id="tip-status"></div>
+</div>
+
+<div id="toasts"></div>
+
+<script>
+'use strict';
+
+// ══════════════════════════════════════════════════════
+//  DATA
+// ══════════════════════════════════════════════════════
+// __GANTT_DATA_START__
+let DATA = {
+  settings: { repo:'', token:'', branch:'main', webhook:'', r1:3, r2:1 },
+  groups: [
+    { id:'g1', name:'設計フェーズ',   color:'#018FC1', desc:'' },
+    { id:'g2', name:'開発フェーズ',   color:'#22c55e', desc:'' },
+    { id:'g3', name:'テストフェーズ', color:'#f59e0b', desc:'' },
+  ],
+  tasks: [
+    { id:'t1', gid:'g1', name:'要件定義',           owners:['相阪 泰伸'], color:'#018FC1', start:'2025-01-06', end:'2025-01-17', pct:100, status:'done',  deps:[] },
+    { id:'t2', gid:'g1', name:'システム設計',       owners:['相阪 泰伸'], color:'#01a8e0', start:'2025-01-13', end:'2025-01-31', pct:80,  status:'doing', deps:[{tid:'t1',lag:0}] },
+    { id:'t3', gid:'g2', name:'フロントエンド実装', owners:['相阪 泰伸'], color:'#22c55e', start:'2025-02-03', end:'2025-02-28', pct:30,  status:'doing', deps:[{tid:'t2',lag:1}] },
+    { id:'t4', gid:'g2', name:'バックエンド実装',   owners:['相阪 泰伸'], color:'#16a34a', start:'2025-02-03', end:'2025-03-14', pct:20,  status:'doing', deps:[{tid:'t2',lag:1}] },
+    { id:'t5', gid:'g3', name:'単体テスト',         owners:['相阪 泰伸'], color:'#f59e0b', start:'2025-03-03', end:'2025-03-14', pct:0,   status:'todo',  deps:[{tid:'t3',lag:2}] },
+    { id:'t6', gid:'g3', name:'結合テスト',         owners:['相阪 泰伸'], color:'#d97706', start:'2025-03-17', end:'2025-03-28', pct:0,   status:'todo',  deps:[{tid:'t5',lag:0}] },
+  ],
+  members: [
+    { id:'m1', name:'相阪 泰伸', email:'aisaka.taishin460@mail.kyutech.jp', teamsId:'@aisaka', role:'', canEdit:true },
+  ],
+  milestones: [
+    { id:'ms1', name:'中間レビュー', date:'2025-02-14', color:'#a855f7', icon:'🎯' },
+    { id:'ms2', name:'リリース',     date:'2025-03-31', color:'#ef4444', icon:'🚀' },
+  ],
+  holidays: [
+    {date:'2025-01-01',name:'元日'},{date:'2025-01-13',name:'成人の日'},
+    {date:'2025-02-11',name:'建国記念日'},{date:'2025-02-23',name:'天皇誕生日'},
+    {date:'2025-03-20',name:'春分の日'},{date:'2025-04-29',name:'昭和の日'},
+    {date:'2025-05-03',name:'憲法記念日'},{date:'2025-05-04',name:'みどりの日'},
+    {date:'2025-05-05',name:'こどもの日'},{date:'2025-07-21',name:'海の日'},
+    {date:'2025-08-11',name:'山の日'},{date:'2025-09-15',name:'敬老の日'},
+    {date:'2025-09-23',name:'秋分の日'},{date:'2025-10-13',name:'スポーツの日'},
+    {date:'2025-11-03',name:'文化の日'},{date:'2025-11-23',name:'勤労感謝の日'},
+  ],
+};
+// __GANTT_DATA_END__
+
+// 閲覧専用モードフラグ（GitHub Actionsが書き換える）
+const READONLY = false; // __READONLY_FLAG__
+
+// GitHub設定（GitHub Actionsが自動埋め込み。手動変更不要）
+// __GITHUB_CONFIG_START__
+const GITHUB_REPO   = '';   // __GITHUB_REPO__
+const GITHUB_TOKEN  = '';   // __GITHUB_TOKEN__
+const GITHUB_BRANCH = 'main'; // __GITHUB_BRANCH__
+// __GITHUB_CONFIG_END__
+
+// ══════════════════════════════════════════════════════
+//  VIEW STATE
+// ══════════════════════════════════════════════════════
+let viewStart   = new Date();  // set in init
+let viewDays    = 90;
+let dayW        = 32;
+let isDirty     = false;
+let modalMode   = null;
+let modalId     = null;
+let currentUser = null;  // ログイン中メンバー { id, name, email, canEdit }
+
+const COLORS = ['#018FC1','#22c55e','#f59e0b','#ef4444','#a855f7',
+                '#ec4899','#06b6d4','#f97316','#14b8a6','#8b5cf6'];
+
+// ══════════════════════════════════════════════════════
+//  HELPERS
+// ══════════════════════════════════════════════════════
+const $ = id => document.getElementById(id);
+const isoDate = d => {
+  // Local date string YYYY-MM-DD (avoids UTC shift)
+  const y = d.getFullYear();
+  const m = String(d.getMonth()+1).padStart(2,'0');
+  const day = String(d.getDate()).padStart(2,'0');
+  return `${y}-${m}-${day}`;
+};
+const parseDate = s => {
+  const [y,m,d] = s.split('-').map(Number);
+  return new Date(y, m-1, d);
+};
+const addDays = (d, n) => { const r = new Date(d); r.setDate(r.getDate()+n); return r; };
+const diffDays = (a, b) => Math.round((b-a)/864e5);
+const isWE = d => { const n = d.getDay(); return n===0||n===6; };
+const isHol = d => DATA.holidays.some(h=>h.date===isoDate(d));
+const dayIdx = d => diffDays(viewStart, d);
+const uid = () => '_'+Math.random().toString(36).slice(2,9);
+const getTask  = id => DATA.tasks.find(t=>t.id===id);
+const getGroup = id => DATA.groups.find(g=>g.id===id);
+
+function setDirty(v=true) {
+  isDirty = v;
+  $('save-status').textContent = v ? '⚠ 未保存の変更あり' : '✓ 保存済み';
+}
+
+// ══════════════════════════════════════════════════════
+//  TABS
+// ══════════════════════════════════════════════════════
+document.querySelectorAll('.tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+    document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+    tab.classList.add('active');
+    $(tab.dataset.panel).classList.add('active');
+    if (tab.dataset.panel === 'gantt-panel')   renderGantt();
+    if (tab.dataset.panel === 'task-panel')    { renderGroupTable(); renderTaskTable(); }
+    if (tab.dataset.panel === 'members-panel') { renderMemberTable(); renderHolidayTable(); }
+    if (tab.dataset.panel === 'milestone-panel') { renderMilestoneTable(); }
+    if (tab.dataset.panel === 'log-panel') { loadEditLog(); }
+  });
+});
+
+// ══════════════════════════════════════════════════════
+//  GANTT RENDER
+// ══════════════════════════════════════════════════════
+function setDayW(v) {
+  dayW = v;
+  document.documentElement.style.setProperty('--day-w', v+'px');
+  $('zoom-val').textContent = v+'px/日';
+  renderGantt();
+}
+function setViewDays(v) { viewDays = v; renderGantt(); }
+function shiftPeriod(dir) { viewStart = addDays(viewStart, dir * Math.floor(viewDays/2)); renderGantt(); }
+function jumpToday() {
+  const t = new Date(); t.setHours(0,0,0,0);
+  viewStart = addDays(t, -14);
+  renderGantt();
+  const body = $('gantt-body');
+  body.scrollLeft = Math.max(0, 14*dayW - body.clientWidth/2);
+}
+
+function renderGantt() {
+  renderHeader();
+  renderRows();
+  syncHeaderScroll();
+  updatePeriodLabel();
+}
+
+function updatePeriodLabel() {
+  const label = viewStart.toLocaleDateString('ja-JP',{year:'numeric',month:'long'});
+  $('period-label').textContent = label;
+  $('period-label2').textContent = label;
+}
+
+function renderHeader() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const mr = $('month-row'); mr.innerHTML = '';
+  const dr = $('day-row');   dr.innerHTML = '';
+
+  // Month spans
+  let months = [];
+  for (let i=0; i<viewDays; i++) {
+    const d = addDays(viewStart, i);
+    const key = d.getFullYear()+'-'+d.getMonth();
+    if (!months.length || months[months.length-1].key !== key) {
+      months.push({key, label:d.toLocaleDateString('ja-JP',{year:'numeric',month:'short'}), count:1});
+    } else months[months.length-1].count++;
+  }
+  months.forEach(m => {
+    const el = document.createElement('div');
+    el.className = 'month-label';
+    el.style.width = (m.count * dayW)+'px';
+    el.textContent = m.label;
+    mr.appendChild(el);
+  });
+
+  for (let i=0; i<viewDays; i++) {
+    const d = addDays(viewStart, i);
+    const el = document.createElement('div');
+    el.className = 'day-cell';
+    if (isWE(d))  el.classList.add('weekend');
+    if (isHol(d)) el.classList.add('holiday');
+    if (+d===+today) el.classList.add('today-hdr');
+    el.textContent = d.getDate();
+    dr.appendChild(el);
+  }
+}
+
+function renderRows() {
+  const today = new Date(); today.setHours(0,0,0,0);
+  const leftCol  = $('left-col');
+  const rightCol = $('right-col');
+
+  // Clear existing rows but keep the dep-svg
+  const depSvg = $('dep-svg');
+  leftCol.innerHTML  = '';
+  // Remove all grid rows; keep dep-svg
+  Array.from(rightCol.children).forEach(c => { if (c !== depSvg) c.remove(); });
+
+  // Today line
+  const todayI = dayIdx(today);
+  if (todayI >= 0 && todayI < viewDays) {
+    const tl = document.createElement('div');
+    tl.id = 'today-line';
+    tl.style.left = (todayI * dayW + dayW/2)+'px';
+    const tip = document.createElement('div');
+    tip.className = 'today-tip'; tip.textContent = '今日';
+    tl.appendChild(tip);
+    rightCol.appendChild(tl);
+  }
+
+  // Track row index for dep arrows (skipping today-line)
+  let rowIndex = 0; // counts .grid-row elements
+  const rowMap = {}; // taskId -> rowIndex
+
+  DATA.groups.forEach(g => {
+    // ─ Group header ─
+    const lRow = document.createElement('div');
+    lRow.className = 'g-row group-header';
+    lRow.innerHTML = `
+      <div class="lc-group" style="color:${g.color}">${g.name}</div>
+      <div class="lc-task" style="color:var(--text2);font-size:11px">
+        <span class="name">▸ ${DATA.tasks.filter(t=>t.gid===g.id).length} タスク</span>
+      </div>
+      <div class="lc-owner"></div>
+    `;
+    leftCol.appendChild(lRow);
+
+    const rRow = makeGridRow(today, true);
+    rightCol.appendChild(rRow);
+    rowIndex++;
+
+    // ─ Tasks ─
+    DATA.tasks.filter(t => t.gid === g.id).forEach(task => {
+      rowMap[task.id] = rowIndex;
+
+      // Left
+      const tlRow = document.createElement('div');
+      tlRow.className = 'g-row';
+      tlRow.innerHTML = `
+        <div class="lc-group"></div>
+        <div class="lc-task" title="ダブルクリックで編集">
+          <div class="dot" style="background:${task.color}"></div>
+          <span class="name">${esc(task.name)}</span>
+        </div>
+        <div class="lc-owner">${renderOwnerTags(task.owners||[task.owner]||[])}</div>
+      `;
+      tlRow.querySelector('.lc-task').addEventListener('dblclick', () => openEditTask(task.id));
+      leftCol.appendChild(tlRow);
+
+      // Right grid row
+      const trRow = makeGridRow(today, false);
+      rightCol.appendChild(trRow);
+
+      // Task bar inside the grid row
+      const si = dayIdx(parseDate(task.start));
+      const ei = dayIdx(parseDate(task.end));
+      if (ei >= 0 && si < viewDays) {
+        const bar = document.createElement('div');
+        bar.className = 'task-bar';
+        bar.dataset.id = task.id;
+
+        const clampedLeft  = Math.max(0, si) * dayW;
+        const clampedRight = Math.min(viewDays, ei+1) * dayW;
+        bar.style.left      = clampedLeft+'px';
+        bar.style.width     = Math.max(6, clampedRight - clampedLeft)+'px';
+        bar.style.background = task.color;
+
+        // Progress
+        if (task.pct > 0) {
+          const prog = document.createElement('div');
+          prog.className = 'prog';
+          prog.style.width = task.pct+'%';
+          bar.appendChild(prog);
+        }
+
+        // Label
+        const lbl = document.createElement('div');
+        lbl.className = 'bar-label';
+        lbl.textContent = task.name;
+        bar.appendChild(lbl);
+
+        // Resize handle
+        const rh = document.createElement('div');
+        rh.className = 'rhandle';
+        bar.appendChild(rh);
+
+        // Events
+        bar.addEventListener('dblclick', () => openEditTask(task.id));
+        bar.addEventListener('mouseenter', e => showTip(e, task));
+        bar.addEventListener('mousemove',  moveTooltip);
+        bar.addEventListener('mouseleave', hideTip);
+        makeDraggable(bar, task, trRow);
+        makeResizable(rh, task, bar, trRow);
+
+        trRow.appendChild(bar);
+      }
+
+      rowIndex++;
+    });
+  });
+
+  // Draw dependency arrows
+  drawDeps(rowMap);
+
+  // Draw milestone lines
+  drawMilestones(rowIndex);
+
+  // Total width
+  const totalW = viewDays * dayW;
+  rightCol.style.minWidth = totalW+'px';
+  depSvg.style.width  = totalW+'px';
+  depSvg.style.height = (rowIndex * 38)+'px';
+}
+
+function makeGridRow(today, isGroup) {
+  const row = document.createElement('div');
+  row.className = 'grid-row' + (isGroup ? ' group-header' : '');
+  for (let i=0; i<viewDays; i++) {
+    const d = addDays(viewStart, i);
+    const cell = document.createElement('div');
+    cell.className = 'grid-cell';
+    if (isWE(d))  cell.classList.add('weekend');
+    if (isHol(d)) cell.classList.add('holiday');
+    if (+d === +new Date(today)) cell.classList.add('today-col');
+    row.appendChild(cell);
+  }
+  return row;
+}
+
+function drawDeps(rowMap) {
+  const svg = $('dep-svg');
+  svg.innerHTML = '';
+
+  // Arrow marker
+  const defs = document.createElementNS('http://www.w3.org/2000/svg','defs');
+  const mk = document.createElementNS('http://www.w3.org/2000/svg','marker');
+  mk.setAttribute('id','arr'); mk.setAttribute('markerWidth','7'); mk.setAttribute('markerHeight','7');
+  mk.setAttribute('refX','5'); mk.setAttribute('refY','3'); mk.setAttribute('orient','auto');
+  const mpath = document.createElementNS('http://www.w3.org/2000/svg','path');
+  mpath.setAttribute('d','M0 0L6 3L0 6Z'); mpath.setAttribute('fill','rgba(148,163,184,0.5)');
+  mk.appendChild(mpath); defs.appendChild(mk); svg.appendChild(defs);
+
+  DATA.tasks.forEach(task => {
+    (task.deps||[]).forEach(dep => {
+      const from = getTask(dep.tid);
+      if (!from || rowMap[from.id]==null || rowMap[task.id]==null) return;
+      const fx = (dayIdx(parseDate(from.end))+1)*dayW;
+      const tx =  dayIdx(parseDate(task.start))*dayW;
+      const fy = rowMap[from.id]*38+19;
+      const ty = rowMap[task.id]*38+19;
+      const mx = fx+10;
+
+      const path = document.createElementNS('http://www.w3.org/2000/svg','path');
+      path.setAttribute('d',`M${fx},${fy} L${mx},${fy} L${mx},${ty} L${tx},${ty}`);
+      path.setAttribute('fill','none');
+      path.setAttribute('stroke','rgba(148,163,184,0.3)');
+      path.setAttribute('stroke-width','1.5');
+      path.setAttribute('stroke-dasharray','5 3');
+      path.setAttribute('marker-end','url(#arr)');
+      svg.appendChild(path);
+    });
+  });
+}
+
+// ══════════════════════════════════════════════════════
+//  DRAG & RESIZE
+// ══════════════════════════════════════════════════════
+function makeDraggable(bar, task, row) {
+  bar.addEventListener('mousedown', e => {
+    if (e.target.classList.contains('rhandle')) return;
+    if (window._editLocked) return;  // 閲覧専用ユーザーはドラッグ不可
+    e.preventDefault();
+    hideTip();
+    const x0 = e.clientX;
+    const s0 = task.start, e0 = task.end;
+    bar.classList.add('is-dragging');
+
+    const onMove = ev => {
+      const dd = Math.round((ev.clientX - x0) / dayW);
+      task.start = isoDate(addDays(parseDate(s0), dd));
+      task.end   = isoDate(addDays(parseDate(e0), dd));
+      const si = dayIdx(parseDate(task.start));
+      const ei = dayIdx(parseDate(task.end));
+      bar.style.left  = Math.max(0, si)*dayW+'px';
+      bar.style.width = Math.max(6, (Math.min(viewDays,ei+1)-Math.max(0,si))*dayW)+'px';
+      setDirty();
+    };
+    const onUp = () => {
+      bar.classList.remove('is-dragging');
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      // Redraw dep arrows only
+      rebuildDepArrows();
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+function makeResizable(handle, task, bar) {
+  handle.addEventListener('mousedown', e => {
+    if (window._editLocked) return;  // 閲覧専用ユーザーはリサイズ不可
+    e.preventDefault(); e.stopPropagation();
+    hideTip();
+    const x0 = e.clientX, e0 = task.end;
+
+    const onMove = ev => {
+      const dd = Math.round((ev.clientX - x0) / dayW);
+      const newEnd = addDays(parseDate(e0), dd);
+      if (newEnd <= parseDate(task.start)) return;
+      task.end = isoDate(newEnd);
+      const si = dayIdx(parseDate(task.start));
+      const ei = dayIdx(parseDate(task.end));
+      bar.style.width = Math.max(6, (Math.min(viewDays,ei+1)-Math.max(0,si))*dayW)+'px';
+      setDirty();
+    };
+    const onUp = () => {
+      document.removeEventListener('mousemove', onMove);
+      document.removeEventListener('mouseup', onUp);
+      rebuildDepArrows();
+    };
+    document.addEventListener('mousemove', onMove);
+    document.addEventListener('mouseup', onUp);
+  });
+}
+
+function rebuildDepArrows() {
+  // Rebuild rowMap and redraw without full re-render
+  const rowMap = {};
+  let ri = 0;
+  DATA.groups.forEach(g => {
+    ri++;
+    DATA.tasks.filter(t=>t.gid===g.id).forEach(t => { rowMap[t.id]=ri; ri++; });
+  });
+  drawDeps(rowMap);
+}
+
+// Scroll sync header
+function syncHeaderScroll() {
+  const body = $('gantt-body');
+  const right = $('gh-right');
+  body.onscroll = () => { right.scrollLeft = body.scrollLeft; };
+}
+
+// ══════════════════════════════════════════════════════
+//  TOOLTIP
+// ══════════════════════════════════════════════════════
+function showTip(e, task) {
+  const tip = $('tip');
+  $('tip-name').textContent   = task.name;
+  $('tip-dates').textContent  = `📅 ${task.start} → ${task.end}`;
+  $('tip-owner').textContent  = `👤 ${(task.owners||[task.owner]||[]).join(', ')}`;
+  const sl = {done:'✅ 完了',doing:'🔵 進行中',todo:'⬜ 未着手',delayed:'🔴 遅延'};
+  $('tip-status').textContent = `${sl[task.status]||task.status}  ${task.pct}%`;
+  tip.style.display = 'block';
+  moveTooltip(e);
+}
+function moveTooltip(e) {
+  $('tip').style.left = (e.clientX+16)+'px';
+  $('tip').style.top  = (e.clientY-10)+'px';
+}
+function hideTip() { $('tip').style.display='none'; }
+
+// ══════════════════════════════════════════════════════
+//  TOAST
+// ══════════════════════════════════════════════════════
+function toast(msg, type='info') {
+  const el = document.createElement('div');
+  el.className = 'toast'+(type==='ok'?' ok':type==='err'?' err':'');
+  el.textContent = msg;
+  $('toasts').appendChild(el);
+  setTimeout(()=>{ el.classList.add('out'); setTimeout(()=>el.remove(),280); }, 3200);
+}
+
+// ══════════════════════════════════════════════════════
+//  MODAL
+// ══════════════════════════════════════════════════════
+function openModal(title, bodyHTML, mode, id=null) {
+  $('modal-title').textContent = title;
+  $('modal-body').innerHTML    = bodyHTML;
+  $('modal-overlay').classList.add('open');
+  modalMode = mode; modalId = id;
+}
+function closeModal() {
+  $('modal-overlay').classList.remove('open');
+  modalMode = null; modalId = null;
+}
+$('modal-overlay').addEventListener('click', e => {
+  if (e.target === $('modal-overlay')) closeModal();
+});
+
+// ── HTML helpers ──
+const esc = s => String(s).replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;').replace(/"/g,'&quot;');
+
+function colorPicker(id, val) {
+  return `<div class="color-row">
+    <input type="color" id="${id}" value="${val}">
+    ${COLORS.map(c=>`<div class="preset-dot${c===val?' sel':''}" style="background:${c}"
+      onclick="document.getElementById('${id}').value='${c}';
+               this.parentNode.querySelectorAll('.preset-dot').forEach(x=>x.classList.remove('sel'));
+               this.classList.add('sel')"></div>`).join('')}
+  </div>`;
+}
+
+function memberOpts(sel='') {
+  return `<option value="">─ 選択 ─</option>`+
+    DATA.members.map(m=>`<option value="${esc(m.name)}"${m.name===sel?' selected':''}>${esc(m.name)}</option>`).join('');
+}
+function groupOpts(sel='') {
+  return DATA.groups.map(g=>`<option value="${g.id}"${g.id===sel?' selected':''}>${esc(g.name)}</option>`).join('');
+}
+function taskOpts(excl='', sel='') {
+  return `<option value="">─ なし ─</option>`+
+    DATA.tasks.filter(t=>t.id!==excl)
+      .map(t=>`<option value="${t.id}"${t.id===sel?' selected':''}>${esc(t.name)}</option>`).join('');
+}
+function statusOpts(sel='todo') {
+  return [['todo','未着手'],['doing','進行中'],['done','完了'],['delayed','遅延']]
+    .map(([v,l])=>`<option value="${v}"${v===sel?' selected':''}>${l}</option>`).join('');
+}
+
+// ── Open modals ──
+function openAddTask() {
+  // Switch to task-panel first so modal renders correctly
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  document.querySelector('[data-panel="task-panel"]').classList.add('active');
+  $('task-panel').classList.add('active');
+  renderGroupTable(); renderTaskTable();
+
+  const today = isoDate(new Date());
+  const weekLater = isoDate(addDays(new Date(),7));
+  openModal('タスク追加', `
+    <div class="form-row"><label>グループ *</label><select id="f-gid">${groupOpts()}</select></div>
+    <div class="form-row"><label>タスク名 *</label><input type="text" id="f-name" placeholder="タスク名を入力"></div>
+    <div class="form-row"><label>担当者</label>${ownerChecklist([])}</div>
+    <div class="form-row"><label>開始日 *</label><input type="date" id="f-start" value="${today}"></div>
+    <div class="form-row"><label>終了日 *</label><input type="date" id="f-end" value="${weekLater}"></div>
+    <div class="form-row"><label>色</label>${colorPicker('f-color','#018FC1')}</div>
+    <div class="form-row"><label>ステータス</label><select id="f-status">${statusOpts()}</select></div>
+    <div class="form-row"><label>進捗 (%)</label><input type="number" id="f-pct" min="0" max="100" value="0" style="width:80px"></div>
+    <div class="form-row"><label>依存タスク</label>
+      <div class="form-inline">
+        <select id="f-dep-task">${taskOpts()}</select>
+        <input type="number" id="f-dep-lag" min="0" value="0" style="width:70px" placeholder="0">
+        <span style="font-size:12px;color:var(--text2)">日後に開始</span>
+      </div>
+    </div>
+  `, 'add-task');
+}
+
+function openEditTask(id) {
+  const t = getTask(id);
+  if (!t) return;
+  const depTid = t.deps&&t.deps[0] ? t.deps[0].tid : '';
+  const depLag = t.deps&&t.deps[0] ? t.deps[0].lag  : 0;
+  openModal('タスク編集: '+t.name, `
+    <div class="form-row"><label>グループ *</label><select id="f-gid">${groupOpts(t.gid)}</select></div>
+    <div class="form-row"><label>タスク名 *</label><input type="text" id="f-name" value="${esc(t.name)}"></div>
+    <div class="form-row"><label>担当者</label>${ownerChecklist(t.owners||[t.owner].filter(Boolean))}</div>
+    <div class="form-row"><label>開始日 *</label><input type="date" id="f-start" value="${t.start}"></div>
+    <div class="form-row"><label>終了日 *</label><input type="date" id="f-end" value="${t.end}"></div>
+    <div class="form-row"><label>色</label>${colorPicker('f-color', t.color)}</div>
+    <div class="form-row"><label>ステータス</label><select id="f-status">${statusOpts(t.status)}</select></div>
+    <div class="form-row"><label>進捗 (%)</label><input type="number" id="f-pct" min="0" max="100" value="${t.pct}" style="width:80px"></div>
+    <div class="form-row"><label>依存タスク</label>
+      <div class="form-inline">
+        <select id="f-dep-task">${taskOpts(id, depTid)}</select>
+        <input type="number" id="f-dep-lag" min="0" value="${depLag}" style="width:70px">
+        <span style="font-size:12px;color:var(--text2)">日後に開始</span>
+      </div>
+    </div>
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+      <button class="btn danger" onclick="deleteTask('${id}')">🗑 このタスクを削除</button>
+    </div>
+  `, 'edit-task', id);
+}
+
+function openAddGroup() {
+  openModal('グループ追加', `
+    <div class="form-row"><label>グループ名 *</label><input type="text" id="f-name" placeholder="グループ名"></div>
+    <div class="form-row"><label>色</label>${colorPicker('f-color','#018FC1')}</div>
+    <div class="form-row"><label>説明</label><textarea id="f-desc" placeholder="（任意）"></textarea></div>
+  `, 'add-group');
+}
+
+function openEditGroup(id) {
+  const g = getGroup(id);
+  openModal('グループ編集', `
+    <div class="form-row"><label>グループ名 *</label><input type="text" id="f-name" value="${esc(g.name)}"></div>
+    <div class="form-row"><label>色</label>${colorPicker('f-color', g.color)}</div>
+    <div class="form-row"><label>説明</label><textarea id="f-desc">${esc(g.desc||'')}</textarea></div>
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+      <button class="btn danger" onclick="deleteGroup('${id}')">🗑 このグループを削除</button>
+    </div>
+  `, 'edit-group', id);
+}
+
+function openAddMember() {
+  openModal('メンバー追加', `
+    <div class="form-row"><label>名前 *</label><input type="text" id="f-name" placeholder="田中 太郎"></div>
+    <div class="form-row"><label>メールアドレス</label><input type="email" id="f-email" placeholder="tanaka@example.com"></div>
+    <div class="form-row"><label>Teams ID</label><input type="text" id="f-teams" placeholder="@tanaka"></div>
+    <div class="form-row"><label>役割</label><input type="text" id="f-role" placeholder="開発"></div>
+    <div class="form-row">
+      <label>編集権限</label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="f-canedit" style="width:16px;height:16px;accent-color:var(--accent)">
+        <span style="font-size:13px">このメンバーに編集権限を付与する</span>
+      </label>
+    </div>
+  `, 'add-member');
+}
+
+function openEditMember(id) {
+  const m = DATA.members.find(x=>x.id===id);
+  openModal('メンバー編集', `
+    <div class="form-row"><label>名前 *</label><input type="text" id="f-name" value="${esc(m.name)}"></div>
+    <div class="form-row"><label>メールアドレス</label><input type="email" id="f-email" value="${esc(m.email||'')}"></div>
+    <div class="form-row"><label>Teams ID</label><input type="text" id="f-teams" value="${esc(m.teamsId||'')}"></div>
+    <div class="form-row"><label>役割</label><input type="text" id="f-role" value="${esc(m.role||'')}"></div>
+    <div class="form-row">
+      <label>編集権限</label>
+      <label style="display:flex;align-items:center;gap:8px;cursor:pointer">
+        <input type="checkbox" id="f-canedit" ${m.canEdit?'checked':''} style="width:16px;height:16px;accent-color:var(--accent)">
+        <span style="font-size:13px">このメンバーに編集権限を付与する</span>
+      </label>
+    </div>
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+      <button class="btn danger" onclick="deleteMember('${id}')">🗑 このメンバーを削除</button>
+    </div>
+  `, 'edit-member', id);
+}
+
+// ── Modal OK handler ──
+function handleModalOk() {
+  const gv = id => { const el = document.getElementById(id); return el ? el.value.trim() : ''; };
+  const gn = id => { const el = document.getElementById(id); return el ? parseInt(el.value)||0 : 0; };
+
+  if (modalMode === 'add-task' || modalMode === 'edit-task') {
+    const name  = gv('f-name');
+    const start = gv('f-start');
+    const end   = gv('f-end');
+    const gid   = gv('f-gid');
+    if (!name)  { toast('タスク名を入力してください','err'); return; }
+    if (!start) { toast('開始日を入力してください','err'); return; }
+    if (!end)   { toast('終了日を入力してください','err'); return; }
+    if (start > end) { toast('終了日は開始日より後にしてください','err'); return; }
+
+    const color  = document.getElementById('f-color')?.value || '#018FC1';
+    const depTid = gv('f-dep-task');
+    const depLag = gn('f-dep-lag');
+    const deps   = depTid ? [{tid:depTid, lag:depLag}] : [];
+    const pct    = Math.min(100, Math.max(0, gn('f-pct')));
+    // 複数担当者
+    const owners = Array.from(document.querySelectorAll('.owner-cb:checked')).map(cb=>cb.value);
+
+    if (modalMode === 'add-task') {
+      DATA.tasks.push({ id:uid(), gid, name, owners, color,
+        start, end, pct, status:gv('f-status')||'todo', deps });
+    } else {
+      const t = getTask(modalId);
+      Object.assign(t, { gid, name, owners, color, start, end, pct, status:gv('f-status'), deps });
+    }
+  }
+  else if (modalMode === 'add-milestone' || modalMode === 'edit-milestone') {
+    const name = gv('f-name');
+    const date = gv('f-date');
+    if (!name) { toast('名前を入力してください','err'); return; }
+    if (!date) { toast('日付を入力してください','err'); return; }
+    const color = document.getElementById('f-color')?.value || '#a855f7';
+    const icon  = gv('f-icon') || '🎯';
+    if (modalMode === 'add-milestone') {
+      DATA.milestones = DATA.milestones || [];
+      DATA.milestones.push({ id:uid(), name, date, color, icon });
+    } else {
+      const ms = DATA.milestones.find(x=>x.id===modalId);
+      if (ms) Object.assign(ms, { name, date, color, icon });
+    }
+  }
+  else if (modalMode === 'add-group' || modalMode === 'edit-group') {
+    const name = gv('f-name');
+    if (!name) { toast('グループ名を入力してください','err'); return; }
+    const color = document.getElementById('f-color')?.value || '#018FC1';
+    if (modalMode === 'add-group') {
+      DATA.groups.push({ id:uid(), name, color, desc:gv('f-desc') });
+    } else {
+      const g = getGroup(modalId);
+      Object.assign(g, { name, color, desc:gv('f-desc') });
+    }
+  }
+  else if (modalMode === 'add-member' || modalMode === 'edit-member') {
+    const name = gv('f-name');
+    if (!name) { toast('名前を入力してください','err'); return; }
+    const canEdit = !!document.getElementById('f-canedit')?.checked;
+    if (modalMode === 'add-member') {
+      DATA.members.push({ id:uid(), name, email:gv('f-email'), teamsId:gv('f-teams'), role:gv('f-role'), canEdit });
+    } else {
+      const m = DATA.members.find(x=>x.id===modalId);
+      Object.assign(m, { name, email:gv('f-email'), teamsId:gv('f-teams'), role:gv('f-role'), canEdit });
+    }
+  }
+
+  setDirty();
+  closeModal();
+  renderAll();
+}
+
+// ── Delete functions ──
+function deleteTask(id) {
+  if (!confirm('このタスクを削除しますか？')) return;
+  DATA.tasks = DATA.tasks.filter(t=>t.id!==id);
+  DATA.tasks.forEach(t=>{ t.deps=(t.deps||[]).filter(d=>d.tid!==id); });
+  setDirty(); closeModal(); renderAll();
+}
+function deleteGroup(id) {
+  if (!confirm('このグループとそのタスクを削除しますか？')) return;
+  DATA.tasks  = DATA.tasks.filter(t=>t.gid!==id);
+  DATA.groups = DATA.groups.filter(g=>g.id!==id);
+  setDirty(); closeModal(); renderAll();
+}
+function deleteMember(id) {
+  if (!confirm('このメンバーを削除しますか？')) return;
+  DATA.members = DATA.members.filter(m=>m.id!==id);
+  setDirty(); closeModal(); renderMemberTable();
+}
+
+
+// ══════════════════════════════════════════════════════
+//  OWNER HELPERS
+// ══════════════════════════════════════════════════════
+function getOwners(task) {
+  // owners配列があればそれを、なければowner文字列を配列化
+  if (task.owners && task.owners.length) return task.owners;
+  if (task.owner) return [task.owner];
+  return [];
+}
+
+function renderOwnerTags(owners) {
+  if (!owners || !owners.length) return '<span style="color:var(--text3);font-size:11px">─</span>';
+  return owners.map(o =>
+    `<span class="owner-tag">${esc(o)}</span>`
+  ).join('');
+}
+
+function ownerChecklist(selectedOwners) {
+  selectedOwners = selectedOwners || [];
+  if (!DATA.members.length) {
+    return '<p style="font-size:12px;color:var(--text3)">メンバータブで担当者を先に登録してください</p>';
+  }
+  return '<div class="owner-checklist">' +
+    DATA.members.map(m =>
+      `<label class="owner-check-item">
+        <input type="checkbox" class="owner-cb" value="${esc(m.name)}"
+          ${selectedOwners.includes(m.name)?'checked':''}>
+        <span>${esc(m.name)}</span>
+        <span style="font-size:10px;color:var(--text3);margin-left:4px">${esc(m.role||'')}</span>
+      </label>`
+    ).join('') +
+  '</div>';
+}
+
+// ══════════════════════════════════════════════════════
+//  MILESTONE FUNCTIONS
+// ══════════════════════════════════════════════════════
+function drawMilestones(totalRows) {
+  const rightCol = $('right-col');
+  // 既存マイルストーンラインを削除
+  rightCol.querySelectorAll('.ms-line').forEach(e => e.remove());
+
+  const ms = DATA.milestones || [];
+  const totalH = totalRows * 38;
+
+  ms.forEach(m => {
+    const d = parseDate(m.date);
+    const i = dayIdx(d);
+    if (i < 0 || i >= viewDays) return;
+
+    const line = document.createElement('div');
+    line.className = 'ms-line';
+    line.style.left = (i * dayW + dayW/2) + 'px';
+    line.style.height = totalH + 'px';
+    line.style.background = m.color;
+    line.style.boxShadow = `0 0 6px ${m.color}60`;
+    line.title = m.name + ' : ' + m.date;
+
+    // ダイヤモンドマーカー
+    const diamond = document.createElement('div');
+    diamond.className = 'ms-diamond';
+    diamond.style.background = m.color;
+    line.appendChild(diamond);
+
+    // ラベル
+    const label = document.createElement('div');
+    label.className = 'ms-label';
+    label.style.background = m.color;
+    label.textContent = (m.icon||'🎯') + ' ' + m.name;
+    line.appendChild(label);
+
+    rightCol.appendChild(line);
+  });
+}
+
+function renderMilestoneTable() {
+  DATA.milestones = DATA.milestones || [];
+  $('milestone-tbody').innerHTML = DATA.milestones.length === 0
+    ? '<tr><td colspan="5" style="text-align:center;color:var(--text3);padding:20px">マイルストーンがありません</td></tr>'
+    : DATA.milestones.map(m => `
+    <tr>
+      <td style="font-size:18px;text-align:center">${m.icon||'🎯'}</td>
+      <td style="font-weight:600">${esc(m.name)}</td>
+      <td style="font-family:var(--mono)">${m.date}</td>
+      <td><span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:${m.color};vertical-align:middle"></span></td>
+      <td><button class="btn sm" onclick="openEditMilestone('${m.id}')">編集</button></td>
+    </tr>
+  `).join('');
+}
+
+function openAddMilestone() {
+  const today = isoDate(new Date());
+  openModal('マイルストーン追加', `
+    <div class="form-row"><label>アイコン</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${['🎯','🚀','⭐','📌','🔔','✅','🏁','💡','🔖','📅'].map(ic=>
+          `<span onclick="document.getElementById('f-icon').value='${ic}';
+            this.parentNode.querySelectorAll('.ic-btn').forEach(x=>x.classList.remove('sel'));
+            this.classList.add('sel')"
+            class="ic-btn preset-dot sel" style="font-size:18px;width:32px;height:32px;border-radius:6px;
+            display:flex;align-items:center;justify-content:center;background:var(--bg3);border:2px solid var(--border);cursor:pointer">${ic}</span>`
+        ).join('')}
+        <input type="hidden" id="f-icon" value="🎯">
+      </div>
+    </div>
+    <div class="form-row"><label>名前 *</label><input type="text" id="f-name" placeholder="例: 中間レビュー"></div>
+    <div class="form-row"><label>日付 *</label><input type="date" id="f-date" value="${today}"></div>
+    <div class="form-row"><label>色</label>${colorPicker('f-color','#a855f7')}</div>
+  `, 'add-milestone');
+}
+
+function openEditMilestone(id) {
+  DATA.milestones = DATA.milestones || [];
+  const m = DATA.milestones.find(x=>x.id===id);
+  if (!m) return;
+  openModal('マイルストーン編集: '+m.name, `
+    <div class="form-row"><label>アイコン</label>
+      <div style="display:flex;gap:6px;flex-wrap:wrap">
+        ${['🎯','🚀','⭐','📌','🔔','✅','🏁','💡','🔖','📅'].map(ic=>
+          `<span onclick="document.getElementById('f-icon').value='${ic}';
+            this.parentNode.querySelectorAll('.ic-btn').forEach(x=>x.classList.remove('sel'));
+            this.classList.add('sel')"
+            class="ic-btn preset-dot${ic===m.icon?' sel':''}"
+            style="font-size:18px;width:32px;height:32px;border-radius:6px;
+            display:flex;align-items:center;justify-content:center;background:var(--bg3);border:2px solid var(--border);cursor:pointer">${ic}</span>`
+        ).join('')}
+        <input type="hidden" id="f-icon" value="${esc(m.icon||'🎯')}">
+      </div>
+    </div>
+    <div class="form-row"><label>名前 *</label><input type="text" id="f-name" value="${esc(m.name)}"></div>
+    <div class="form-row"><label>日付 *</label><input type="date" id="f-date" value="${m.date}"></div>
+    <div class="form-row"><label>色</label>${colorPicker('f-color', m.color)}</div>
+    <div style="margin-top:16px;padding-top:14px;border-top:1px solid var(--border)">
+      <button class="btn danger" onclick="deleteMilestone('${id}')">🗑 削除</button>
+    </div>
+  `, 'edit-milestone', id);
+}
+
+function deleteMilestone(id) {
+  if (!confirm('このマイルストーンを削除しますか？')) return;
+  DATA.milestones = (DATA.milestones||[]).filter(m=>m.id!==id);
+  setDirty(); closeModal(); renderMilestoneTable(); renderGantt();
+}
+
+
+// ══════════════════════════════════════════════════════
+//  EXCEL MEMBER IMPORT
+// ══════════════════════════════════════════════════════
+
+
+// ArrayBuffer → メンバー配列に変換
+function parseXlsxToMembers(buffer) {
+  const wb = XLSX.read(buffer, { type: 'array' });
+  const ws = wb.Sheets[wb.SheetNames[0]]; // 先頭シート
+  const rows = XLSX.utils.sheet_to_json(ws, { defval: '' });
+
+  // 列名マッピング（日本語・英語両対応）
+  const COL = {
+    name:    ['名前', 'name', 'Name', '氏名'],
+    email:   ['メールアドレス', 'メール', 'email', 'Email', 'mail'],
+    teamsId: ['TeamsID', 'Teams ID', 'teamsId', 'teams_id', 'Teamsメンション'],
+    role:    ['役割', 'role', 'Role', '部署', '所属'],
+    canEdit: ['編集権限', 'canEdit', '権限', 'edit', 'EditPermission'],
+  };
+
+  function findCol(row, keys) {
+    for (const k of keys) {
+      if (k in row) return String(row[k]).trim();
+    }
+    return '';
+  }
+
+  return rows
+    .map(row => {
+      const name = findCol(row, COL.name);
+      if (!name) return null;
+      const canEditVal = findCol(row, COL.canEdit);
+      const canEdit = ['○', 'o', 'O', '1', 'true', 'yes', 'YES', '編集可', '✓', '✅']
+        .includes(canEditVal) || canEditVal.toLowerCase() === 'true';
+      return {
+        id:      'xl_' + Math.random().toString(36).slice(2, 8),
+        name,
+        email:   findCol(row, COL.email),
+        teamsId: findCol(row, COL.teamsId),
+        role:    findCol(row, COL.role),
+        canEdit,
+      };
+    })
+    .filter(Boolean);
+}
+
+// プレビューテーブルを表示
+let _xlsxPendingMembers = [];
+function showXlsxPreview(members, label) {
+  _xlsxPendingMembers = members;
+  document.getElementById('xlsx-preview').style.display = 'block';
+  document.getElementById('xlsx-preview-label').textContent = label;
+  document.getElementById('xlsx-preview-tbody').innerHTML = members.map(m => `
+    <tr>
+      <td style="font-weight:600">${esc(m.name)}</td>
+      <td style="font-family:var(--mono);font-size:11px">${esc(m.email || '─')}</td>
+      <td style="font-family:var(--mono);font-size:11px">${esc(m.teamsId || '─')}</td>
+      <td style="color:var(--text3)">${esc(m.role || '─')}</td>
+      <td>${m.canEdit
+        ? '<span class="edit-badge">編集可</span>'
+        : '<span class="readonly-badge">閲覧のみ</span>'}</td>
+    </tr>
+  `).join('');
+}
+
+// メンバーデータを実際にDATAに反映する共通処理
+function _applyMembersData(members) {
+  // 既存メンバーとマージ（メールアドレス→名前の順でマッチング）
+  const merged = [...members];
+  DATA.members.forEach(existing => {
+    const byEmail = merged.find(m => m.email && m.email === existing.email);
+    const byName  = merged.find(m => m.name  === existing.name);
+    if (!byEmail && !byName) merged.push(existing); // Excelにない既存メンバーは保持
+  });
+  DATA.members = merged;
+  setDirty();
+  renderMemberTable();
+  // ログイン中ユーザーの権限を最新に更新
+  if (currentUser) {
+    const updated = DATA.members.find(m => m.email === currentUser.email);
+    if (updated) { currentUser = updated; applyAuthState(); }
+  }
+}
+
+// プレビューの内容をDATAに反映（手動確認後）
+function applyXlsxImport() {
+  if (!_xlsxPendingMembers.length) return;
+  _applyMembersData(_xlsxPendingMembers);
+  document.getElementById('xlsx-preview').style.display = 'none';
+  _xlsxPendingMembers = [];
+  toast(`✅ ${DATA.members.length} 名のメンバーを反映しました`, 'ok');
+}
+
+// ── GitHubからdata/members.xlsxを読み込み ──
+// silent=true のとき：プレビューなしで直接反映、ステータス表示もスキップ
+async function loadMembersFromGitHub(silent) {
+  const { repo, token } = DATA.settings;
+  if (!repo || !token) {
+    if (!silent) toast('設定タブでGitHubを設定してください', 'err');
+    return;
+  }
+
+  const statusEl = document.getElementById('xlsx-gh-status');
+  if (statusEl && !silent) statusEl.textContent = '読み込み中...';
+
+  try {
+    const r = await fetch(
+      `https://api.github.com/repos/${repo}/contents/data/members.xlsx?t=${Date.now()}`,
+      { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' } }
+    );
+    if (!r.ok) {
+      if (!silent && statusEl) {
+        statusEl.textContent = r.status === 404
+          ? '⚠ data/members.xlsx が見つかりません（テンプレートDLでExcelを作成し、GitHubへ保存してください）'
+          : `エラー: ${r.status}`;
+      }
+      return;
+    }
+
+    const j      = await r.json();
+    const binary = atob(j.content.replace(/\s/g, ''));
+    const buf    = new Uint8Array(binary.length);
+    for (let i = 0; i < binary.length; i++) buf[i] = binary.charCodeAt(i);
+
+    const members = parseXlsxToMembers(buf.buffer);
+    if (!members.length) {
+      if (!silent && statusEl) statusEl.textContent = '⚠ メンバーデータが空です';
+      return;
+    }
+
+    if (silent) {
+      // 起動時自動読み込み：プレビューなしで直接反映
+      _applyMembersData(members);
+      console.log('[members] Auto-loaded', members.length, 'members from GitHub');
+    } else {
+      // 手動実行：プレビュー表示して確認を促す
+      showXlsxPreview(members, `GitHub の data/members.xlsx から ${members.length} 名を検出`);
+      if (statusEl) statusEl.textContent = `✅ ${members.length} 名を取得 — 内容を確認して「反映する」をクリックしてください`;
+    }
+  } catch(e) {
+    if (!silent) {
+      const statusEl2 = document.getElementById('xlsx-gh-status');
+      if (statusEl2) statusEl2.textContent = 'エラー: ' + e.message;
+      toast('読み込み失敗: ' + e.message, 'err');
+    }
+    console.warn('[members] loadMembersFromGitHub error:', e.message);
+  }
+}
+
+// ── 現在のメンバーリストをxlsxに変換してGitHubへ保存 ──
+async function uploadMembersToGitHub() {
+  const { repo, token, branch } = DATA.settings;
+  if (!repo || !token) { toast('設定タブでGitHubを設定してください', 'err'); return; }
+  if (!DATA.members.length) { toast('メンバーがいません', 'err'); return; }
+
+  const status = document.getElementById('xlsx-gh-status');
+  status.textContent = 'アップロード中...';
+
+  try {
+    // メンバーをExcelに変換
+    const rows = DATA.members.map(m => ({
+      '名前':         m.name,
+      'メールアドレス': m.email   || '',
+      'TeamsID':       m.teamsId || '',
+      '役割':          m.role    || '',
+      '編集権限':      m.canEdit ? '○' : '×',
+    }));
+    const ws  = XLSX.utils.json_to_sheet(rows);
+    const wb  = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'メンバー');
+    const xlsxBuf  = XLSX.write(wb, { type: 'array', bookType: 'xlsx' });
+    const b64      = btoa(String.fromCharCode(...new Uint8Array(xlsxBuf)));
+
+    // 既存SHAを取得
+    let sha = '';
+    try {
+      const r = await fetch(
+        `https://api.github.com/repos/${repo}/contents/data/members.xlsx?t=${Date.now()}`,
+        { headers: { Authorization: `Bearer ${token}` } }
+      );
+      if (r.ok) sha = (await r.json()).sha;
+    } catch(e) {}
+
+    const body = {
+      message: `メンバーリスト更新 ${new Date().toLocaleString('ja-JP')}`,
+      content: b64,
+      branch:  branch || 'main',
+    };
+    if (sha) body.sha = sha;
+
+    const pr = await fetch(
+      `https://api.github.com/repos/${repo}/contents/data/members.xlsx`,
+      { method: 'PUT', headers: { Authorization: `Bearer ${token}`,
+          Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+        body: JSON.stringify(body) }
+    );
+    if (!pr.ok) throw new Error('PUT失敗: ' + pr.status);
+
+    status.textContent = `✅ data/members.xlsx を保存しました（${DATA.members.length} 名）`;
+    toast('GitHubへのアップロード完了', 'ok');
+  } catch(e) {
+    status.textContent = 'エラー: ' + e.message;
+    toast('アップロード失敗: ' + e.message, 'err');
+  }
+}
+
+// ── Excelテンプレートをダウンロード ──
+function downloadMemberTemplate() {
+  const sample = [
+    { '名前': '相阪 泰伸', 'メールアドレス': 'aisaka.taishin460@mail.kyutech.jp', 'TeamsID': '@aisaka', '役割': '', '編集権限': '○' },
+    { '名前': '（追加メンバー）', 'メールアドレス': 'example@mail.com', 'TeamsID': '@example', '役割': '', '編集権限': '×' },
+  ];
+  const ws = XLSX.utils.json_to_sheet(sample);
+
+  // 列幅設定
+  ws['!cols'] = [
+    { wch: 16 }, { wch: 26 }, { wch: 14 }, { wch: 12 }, { wch: 10 }
+  ];
+
+  const wb = XLSX.utils.book_new();
+  XLSX.utils.book_append_sheet(wb, ws, 'メンバー');
+  XLSX.writeFile(wb, 'members_template.xlsx');
+  toast('テンプレートをダウンロードしました', 'ok');
+}
+
+// ══════════════════════════════════════════════════════
+//  TABLE RENDERS
+// ══════════════════════════════════════════════════════
+function renderGroupTable() {
+  $('group-tbody').innerHTML = DATA.groups.map(g=>`
+    <tr>
+      <td>${esc(g.name)}</td>
+      <td><span style="display:inline-block;width:20px;height:20px;border-radius:50%;background:${g.color};vertical-align:middle"></span></td>
+      <td style="color:var(--text3)">${esc(g.desc||'─')}</td>
+      <td><button class="btn sm" onclick="openEditGroup('${g.id}')">編集</button></td>
+    </tr>
+  `).join('');
+}
+
+function renderTaskTable() {
+  const sl = {done:'done',doing:'doing',todo:'todo',delayed:'delayed'};
+  const slLabel = {done:'完了',doing:'進行中',todo:'未着手',delayed:'遅延'};
+  $('task-tbody').innerHTML = DATA.tasks.map(t=>{
+    const g = getGroup(t.gid);
+    const depStr = (t.deps||[]).map(d=>{
+      const dt=getTask(d.tid); return dt?`${dt.name}+${d.lag}日`:'';
+    }).filter(Boolean).join(', ') || '─';
+    return `<tr>
+      <td>${g?esc(g.name):'─'}</td>
+      <td>
+        <span style="display:inline-block;width:8px;height:8px;border-radius:50%;background:${t.color};margin-right:5px;vertical-align:middle"></span>
+        ${esc(t.name)}
+      </td>
+      <td><div class='owner-tags'>${renderOwnerTags(getOwners(t))}</div></td>
+      <td><input type="date" value="${t.start}" style="width:130px"
+           onchange="getTask('${t.id}').start=this.value;setDirty();renderGantt()"></td>
+      <td><input type="date" value="${t.end}" style="width:130px"
+           onchange="getTask('${t.id}').end=this.value;setDirty();renderGantt()"></td>
+      <td><input type="color" value="${t.color}"
+           onchange="getTask('${t.id}').color=this.value;setDirty();renderGantt()"></td>
+      <td>
+        <input type="number" value="${t.pct}" min="0" max="100" style="width:58px"
+               onchange="getTask('${t.id}').pct=Math.min(100,Math.max(0,+this.value));setDirty();renderGantt()">%
+      </td>
+      <td><span class="chip ${sl[t.status]||'todo'}">${slLabel[t.status]||t.status}</span></td>
+      <td style="font-size:11px;color:var(--text3)">${esc(depStr)}</td>
+      <td><button class="btn sm" onclick="openEditTask('${t.id}')">詳細編集</button></td>
+    </tr>`;
+  }).join('');
+}
+
+function renderMemberTable() {
+  $('member-tbody').innerHTML = DATA.members.map(m=>`
+    <tr>
+      <td>${esc(m.name)}</td>
+      <td style="font-family:var(--mono);font-size:11px">${esc(m.email||'─')}</td>
+      <td style="font-family:var(--mono);font-size:11px">${esc(m.teamsId||'─')}</td>
+      <td style="color:var(--text3)">${esc(m.role||'─')}</td>
+      <td>
+        <label style="display:flex;align-items:center;gap:6px;cursor:pointer">
+          <input type="checkbox" ${m.canEdit?'checked':''} style="accent-color:var(--accent)"
+            onchange="DATA.members.find(x=>x.id==='${m.id}').canEdit=this.checked;setDirty()">
+          <span style="font-size:11px">${m.canEdit?'<span class=\'edit-badge\'>編集可</span>':'<span class=\'readonly-badge\'>閲覧のみ</span>'}</span>
+        </label>
+      </td>
+      <td><button class="btn sm" onclick="openEditMember('${m.id}')">編集</button></td>
+    </tr>
+  `).join('');
+}
+
+function renderHolidayTable() {
+  $('holiday-tbody').innerHTML = DATA.holidays.map((h,i)=>`
+    <tr>
+      <td style="font-family:var(--mono)">${h.date}</td>
+      <td>${esc(h.name)}</td>
+      <td><button class="btn sm danger" onclick="removeHoliday(${i})">削除</button></td>
+    </tr>
+  `).join('');
+}
+
+function addHoliday() {
+  const date = $('hol-date').value;
+  const name = $('hol-name').value.trim();
+  if (!date||!name) { toast('日付と祝日名を入力してください','err'); return; }
+  if (DATA.holidays.some(h=>h.date===date)) { toast('その日付はすでに登録されています','err'); return; }
+  DATA.holidays.push({date,name});
+  DATA.holidays.sort((a,b)=>a.date.localeCompare(b.date));
+  $('hol-date').value=''; $('hol-name').value='';
+  setDirty(); renderHolidayTable(); renderGantt();
+}
+function removeHoliday(i) {
+  DATA.holidays.splice(i,1);
+  setDirty(); renderHolidayTable(); renderGantt();
+}
+
+function renderAll() {
+  renderGantt();
+  renderGroupTable();
+  renderTaskTable();
+  renderMemberTable();
+  renderHolidayTable();
+  if ($("milestone-tbody")) renderMilestoneTable();
+}
+
+// ══════════════════════════════════════════════════════
+//  SETTINGS
+// ══════════════════════════════════════════════════════
+function toggleTokenVisible() {
+  const input = $('cfg-token');
+  const btn   = $('token-eye');
+  if (input.type === 'password') {
+    input.type = 'text';
+    btn.textContent = '🙈';
+  } else {
+    input.type = 'password';
+    btn.textContent = '👁';
+  }
+}
+
+function validateToken(input) {
+  const hint = $('token-hint');
+  const v = input.value.trim();
+  if (!v) { hint.style.display = 'none'; return; }
+  if (v.startsWith('ghp_') || v.startsWith('github_pat_')) {
+    hint.style.display = 'block';
+    hint.style.color = 'var(--green)';
+    hint.textContent = '✅ トークン形式OK';
+  } else {
+    hint.style.display = 'block';
+    hint.style.color = 'var(--red)';
+    hint.textContent = '⚠ ghp_ または github_pat_ で始まるトークスを入力してください';
+  }
+}
+
+function saveSettings() {
+  DATA.settings.repo    = $('cfg-repo').value.trim();
+  DATA.settings.token   = $('cfg-token').value.trim();
+  DATA.settings.branch  = $('cfg-branch').value.trim() || 'main';
+  DATA.settings.webhook = $('cfg-webhook').value.trim();
+  DATA.settings.r1      = parseInt($('cfg-r1').value)||3;
+  DATA.settings.r2      = parseInt($('cfg-r2').value)||1;
+  localStorage.setItem('gantt-cfg', JSON.stringify({...DATA.settings}));
+  toast('設定を保存しました','ok');
+}
+
+function loadSettings() {
+  // 1. HTMLに埋め込まれた定数を最優先（別PCでも動く）
+  if (typeof GITHUB_REPO  !== 'undefined' && GITHUB_REPO)  DATA.settings.repo   = GITHUB_REPO;
+  if (typeof GITHUB_TOKEN !== 'undefined' && GITHUB_TOKEN) DATA.settings.token  = GITHUB_TOKEN;
+  if (typeof GITHUB_BRANCH!== 'undefined' && GITHUB_BRANCH)DATA.settings.branch = GITHUB_BRANCH;
+
+  // 2. localStorageの設定で上書き（手動入力を優先したい場合）
+  const s = localStorage.getItem('gantt-cfg');
+  if (s) {
+    try {
+      const cfg = JSON.parse(s);
+      // 埋め込み定数がある場合はrepo/token/branchはそちらを優先
+      if (!GITHUB_REPO)   DATA.settings.repo    = cfg.repo    || DATA.settings.repo;
+      if (!GITHUB_TOKEN)  DATA.settings.token   = cfg.token   || DATA.settings.token;
+      if (!GITHUB_BRANCH) DATA.settings.branch  = cfg.branch  || DATA.settings.branch;
+      DATA.settings.webhook = cfg.webhook || '';
+      DATA.settings.r1      = cfg.r1 ?? 3;
+      DATA.settings.r2      = cfg.r2 ?? 1;
+    } catch(e) {}
+  }
+
+  // 3. 設定UIに反映
+  if ($('cfg-repo'))    $('cfg-repo').value    = DATA.settings.repo    || '';
+  if ($('cfg-token'))   $('cfg-token').value   = DATA.settings.token   || '';
+  if ($('cfg-branch'))  $('cfg-branch').value  = DATA.settings.branch  || 'main';
+  if ($('cfg-webhook')) $('cfg-webhook').value  = DATA.settings.webhook || '';
+  if ($('cfg-r1'))      $('cfg-r1').value       = DATA.settings.r1 ?? 3;
+  if ($('cfg-r2'))      $('cfg-r2').value       = DATA.settings.r2 ?? 1;
+
+  const tokenInput = $('cfg-token');
+  if (tokenInput && tokenInput.value) validateToken(tokenInput);
+}
+
+async function testGH() {
+  const repo  = $('cfg-repo').value.trim();
+  const token = $('cfg-token').value.trim();
+  if (!repo||!token) { toast('リポジトリとトークンを入力してください','err'); return; }
+  try {
+    const r = await fetch(`https://api.github.com/repos/${repo}`,
+      { headers:{ Authorization:`Bearer ${token}` } });
+    if (r.ok) { const j=await r.json(); toast(`✅ 接続成功: ${j.full_name}`,'ok'); }
+    else if (r.status === 401) { showCredentialError(); }
+    else toast('接続失敗: ' + r.status,'err');
+  } catch(e) { toast('接続エラー: '+e.message,'err'); }
+}
+
+// ══════════════════════════════════════════════════════
+//  GITHUB SAVE
+// ══════════════════════════════════════════════════════
+async function getLatestSha(repo, token, branch) {
+  const r = await fetch(
+    `https://api.github.com/repos/${repo}/contents/data/tasks.json?ref=${branch}&t=${Date.now()}`,
+    { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json', 'Cache-Control': 'no-cache' } }
+  );
+  if (r.ok)             return (await r.json()).sha;
+  if (r.status === 401) throw new Error('401_CREDENTIALS');
+  if (r.status === 404) return '';
+  throw new Error('SHA取得失敗: ' + r.status);
+}
+
+async function saveToGitHub() {
+  const { repo, token, branch } = DATA.settings;
+  if (!repo || !token) {
+    toast('設定タブでリポジトリとトークンを設定してください', 'err');
+    document.querySelector('[data-panel="settings-panel"]').click();
+    return;
+  }
+
+  const trimmedToken = token.trim();
+  if (!trimmedToken.startsWith('ghp_') && !trimmedToken.startsWith('github_pat_')) {
+    toast('⚠ トークン形式が正しくありません（ghp_ または github_pat_ で始まるはずです）', 'err');
+    return;
+  }
+
+  const targetBranch = branch || 'main';
+  if (!currentUser || !currentUser.canEdit) {
+    toast('⚠ 編集権限がありません', 'err'); return;
+  }
+  toast('GitHubに保存中...', 'info');
+  const summary = `${DATA.tasks.length}タスク / ${DATA.groups.length}グループ`;
+
+  const ok = await mergeAndSave(DATA, summary);
+  if (ok) {
+    setDirty(false);
+    $('save-status').textContent = '✓ ' + currentUser.name + ' が保存 ' + new Date().toLocaleTimeString('ja-JP');
+    toast('✅ 保存しました（マージ完了）', 'ok');
+    renderAll();
+    await appendEditLog(summary);
+  }
+  return;
+  for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
+    try {
+      // ── 毎回最新SHAを取得 ──
+      const sha = await getLatestSha(repo, trimmedToken, targetBranch);
+
+      const saveData = { ...DATA, settings: { ...DATA.settings, token: '' } };
+      const payload  = JSON.stringify(saveData, null, 2);
+      const content  = btoa(unescape(encodeURIComponent(payload)));
+
+      const body = {
+        message: `ガントチャート更新 ${new Date().toLocaleString('ja-JP')}`,
+        content, branch: targetBranch
+      };
+      if (sha) body.sha = sha;
+
+      const pr = await fetch(
+        `https://api.github.com/repos/${repo}/contents/data/tasks.json`,
+        { method: 'PUT', headers: { Authorization: `Bearer ${trimmedToken}`,
+            Accept: 'application/vnd.github+json', 'Content-Type': 'application/json' },
+          body: JSON.stringify(body) }
+      );
+
+      if (pr.ok) {
+        setDirty(false);
+        $('save-status').textContent = '✓ 保存済み ' + new Date().toLocaleTimeString('ja-JP');
+        toast('✅ GitHubに保存しました。Actions が自動でTeams通知を送信します。', 'ok');
+        return;
+      }
+
+      const errText = await pr.text();
+      if (pr.status === 409) {
+        console.warn(`[save] 409 conflict (attempt ${attempt}/${MAX_RETRY})`);
+        if (attempt < MAX_RETRY) {
+          toast(`⏳ 競合を検出。再試行中... (${attempt}/${MAX_RETRY})`, 'info');
+          await new Promise(res => setTimeout(res, 1000 * attempt));
+          continue;
+        }
+        throw new Error('409_CONFLICT');
+      }
+      if (pr.status === 401) throw new Error('401_CREDENTIALS');
+      if (pr.status === 403) throw new Error('403_FORBIDDEN');
+      if (pr.status === 404) throw new Error('404_NOTFOUND');
+      throw new Error(`PUT失敗: ${pr.status} ${errText}`);
+
+    } catch(e) {
+      if (e.message === '401_CREDENTIALS') { showCredentialError(); return; }
+      if (e.message === '403_FORBIDDEN') { toast('❌ 403 権限エラー: トークンに repo スコープがありません', 'err'); return; }
+      if (e.message === '404_NOTFOUND')  { toast('❌ 404 リポジトリが見つかりません', 'err'); return; }
+      if (e.message === '409_CONFLICT')  { toast('❌ 競合解消できませんでした。ページ再読み込み後に再試行してください', 'err'); return; }
+      if (attempt < MAX_RETRY) { await new Promise(res => setTimeout(res, 1000 * attempt)); continue; }
+      toast('❌ 保存エラー: ' + e.message, 'err');
+      return;
+    }
+  }
+}
+
+function showCredentialError() {
+  // モーダルで詳細な解決策を表示
+  openModal('🔑 認証エラー（401）— 解決方法', `
+    <p style="font-size:13px;color:var(--text2);margin-bottom:16px">
+      GitHubへの認証に失敗しました。以下を順番に確認してください。
+    </p>
+    <div style="display:flex;flex-direction:column;gap:12px">
+      <div style="background:var(--bg3);border-radius:8px;padding:14px">
+        <div style="font-weight:700;margin-bottom:6px">① トークンの有効期限切れ（最多原因）</div>
+        <div style="font-size:12px;color:var(--text2)">
+          GitHubの <strong>Settings → Developer settings → Personal access tokens</strong> を開き、
+          使用しているトークンが <span style="color:var(--red)">Expired</span> になっていないか確認。
+          期限切れなら「Regenerate token」または新規作成してください。
+        </div>
+      </div>
+      <div style="background:var(--bg3);border-radius:8px;padding:14px">
+        <div style="font-weight:700;margin-bottom:6px">② トークンのスコープ不足</div>
+        <div style="font-size:12px;color:var(--text2)">
+          トークン作成時に <code style="background:var(--bg2);padding:2px 6px;border-radius:4px">repo</code>
+          にチェックが入っているか確認してください（Publicリポジトリでも <code>repo</code> が必要です）。
+        </div>
+      </div>
+      <div style="background:var(--bg3);border-radius:8px;padding:14px">
+        <div style="font-weight:700;margin-bottom:6px">③ 設定タブのトークンを再入力</div>
+        <div style="font-size:12px;color:var(--text2)">
+          新しいトークン（<code>ghp_</code> または <code>github_pat_</code> で始まる）をコピーし、
+          設定タブの「Personal Access Token」欄に貼り付けて「設定保存」をクリック。
+        </div>
+      </div>
+    </div>
+    <div style="margin-top:14px;padding:10px;background:rgba(1,143,193,0.08);border-radius:8px;border-left:3px solid var(--accent)">
+      <div style="font-size:12px;color:var(--text2)">
+        💡 <strong>Fine-grained token を使っている場合</strong>：対象リポジトリへの
+        <code>Contents: Read and write</code> 権限が必要です。
+      </div>
+    </div>
+  `, 'error-info');
+  // モーダルのOKボタンを「設定タブへ」に変える
+  $('modal-ok').textContent = '⚙️ 設定タブへ';
+  $('modal-ok').onclick = () => {
+    closeModal();
+    document.querySelector('[data-panel="settings-panel"]').click();
+  };
+}
+
+async function loadFromGitHub() {
+  const { repo, token } = DATA.settings;
+  if (!repo||!token) return;
+  try {
+    const r = await fetch(
+      `https://api.github.com/repos/${repo}/contents/data/tasks.json?t=${Date.now()}`,
+      { headers:{ Authorization:`Bearer ${token}`, 'Cache-Control':'no-cache' } }
+    );
+    if (!r.ok) return;
+    const j    = await r.json();
+    const text = decodeURIComponent(escape(atob(j.content.replace(/\s/g,''))));
+    const loaded = JSON.parse(text);
+    if (loaded.groups)      DATA.groups      = loaded.groups;
+    if (loaded.tasks)       DATA.tasks       = loaded.tasks;
+    if (loaded.members)     DATA.members     = loaded.members;
+    if (loaded.holidays)    DATA.holidays    = loaded.holidays;
+    if (loaded.milestones)  DATA.milestones  = loaded.milestones;
+    toast('GitHubからデータを読み込みました','ok');
+    renderAll();
+    setDirty(false);
+  } catch(e) { console.warn('GitHub load:', e.message); }
+}
+
+// ══════════════════════════════════════════════════════
+//  WORKFLOW DOWNLOAD
+// ══════════════════════════════════════════════════════
+function downloadWorkflows() {
+  const saveYml = `name: Save & Notify Teams
+on:
+  push:
+    branches: [main]
+    paths: ['data/tasks.json']
+permissions:
+  contents: write
+  pages: write
+  id-token: write
+jobs:
+  notify-deploy:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Send Teams notification
+        run: |
+          node -e "
+          const fs=require('fs');
+          const d=JSON.parse(fs.readFileSync('data/tasks.json','utf8'));
+          const repo=process.env.GITHUB_REPOSITORY;
+          const url='https://'+repo.split('/')[0]+'.github.io/'+repo.split('/')[1];
+          const doing=d.tasks.filter(t=>t.status==='doing').length;
+          const done=d.tasks.filter(t=>t.status==='done').length;
+          const msg={
+            '@type':'MessageCard','@context':'http://schema.org/extensions',
+            themeColor:'0076D7',title:'📊 ガントチャートが更新されました',
+            sections:[{facts:[
+              {name:'進行中',value:String(doing)},
+              {name:'完了',value:String(done)},
+              {name:'合計',value:String(d.tasks.length)}
+            ]}],
+            potentialAction:[{'@type':'OpenUri',name:'ガントチャートを開く',targets:[{os:'default',uri:url}]}]
+          };
+          require('fs').writeFileSync('/tmp/msg.json',JSON.stringify(msg));
+          "
+          curl -sf -X POST "\${{ secrets.TEAMS_WEBHOOK }}" \\
+            -H "Content-Type: application/json" -d @/tmp/msg.json || echo "Teams skipped"
+        env:
+          GITHUB_REPOSITORY: \${{ github.repository }}
+      - name: Deploy to GitHub Pages
+        uses: peaceiris/actions-gh-pages@v3
+        with:
+          github_token: \${{ secrets.GITHUB_TOKEN }}
+          publish_dir: ./
+`;
+
+  const remindYml = `name: Daily Deadline Reminder
+on:
+  schedule:
+    - cron: '0 0 * * 1-5'
+  workflow_dispatch:
+jobs:
+  remind:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Send reminders
+        env:
+          TEAMS_WEBHOOK: \${{ secrets.TEAMS_WEBHOOK }}
+          GITHUB_REPOSITORY: \${{ github.repository }}
+        run: |
+          node -e "
+          const fs=require('fs'),https=require('https');
+          const data=JSON.parse(fs.readFileSync('data/tasks.json','utf8'));
+          const now=new Date(new Date().toLocaleString('en-US',{timeZone:'Asia/Tokyo'}));
+          now.setHours(0,0,0,0);
+          const sections=[];
+          const check=(days,icon,label)=>{
+            const items=data.tasks.filter(t=>{
+              if(t.status==='done')return false;
+              const e=new Date(t.end+'T00:00:00');
+              return Math.round((e-now)/86400000)===days;
+            });
+            if(items.length){
+              sections.push({activityTitle:icon+' '+label,
+                text:items.map(t=>{
+                  const m=(data.members||[]).find(x=>x.name===t.owner);
+                  return '**'+t.name+'** 担当: '+(m?m.teamsId:t.owner)+' 期限: '+t.end;
+                }).join('\n\n')});
+            }
+          };
+          check(3,'⚠️','期限3日前');
+          check(1,'🚨','期限明日');
+          check(0,'🔴','本日期限');
+          if(!sections.length){console.log('No reminders.');process.exit(0);}
+          const repo=process.env.GITHUB_REPOSITORY||'';
+          const url=repo?'https://'+repo.split('/')[0]+'.github.io/'+repo.split('/')[1]:'';
+          const card={'@type':'MessageCard','@context':'http://schema.org/extensions',
+            themeColor:'FF6B35',title:'📅 タスク期限リマインダー',sections,
+            potentialAction:url?[{'@type':'OpenUri',name:'ガントチャートを確認',targets:[{os:'default',uri:url}]}]:[]};
+          const body=JSON.stringify(card);
+          const u=new URL(process.env.TEAMS_WEBHOOK);
+          const req=https.request({hostname:u.hostname,path:u.pathname+u.search,method:'POST',
+            headers:{'Content-Type':'application/json','Content-Length':Buffer.byteLength(body)}},
+            r=>{console.log('Status:',r.statusCode);r.resume();});
+          req.on('error',e=>{console.error(e);process.exit(1);});
+          req.write(body);req.end();
+          "
+`;
+
+  dl('save-and-notify.yml', saveYml);
+  setTimeout(() => dl('daily-reminder.yml', remindYml), 300);
+  toast('ワークフローファイルをダウンロードしました','ok');
+}
+function dl(name, content) {
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(new Blob([content],{type:'text/plain'}));
+  a.download = name; a.click();
+}
+
+// ══════════════════════════════════════════════════════
+//  LOGO
+// ══════════════════════════════════════════════════════
+function handleLogoUpload(input) {
+  const file = input.files[0];
+  if (!file) return;
+  if (!file.type.startsWith('image/')) { toast('画像ファイルを選択してください', 'err'); return; }
+  if (file.size > 2 * 1024 * 1024) { toast('ファイルサイズは2MB以下にしてください', 'err'); return; }
+
+  const reader = new FileReader();
+  reader.onload = e => {
+    const dataUrl = e.target.result;
+    applyLogo(dataUrl);
+    // localStorageに保存（次回起動時も維持）
+    try { localStorage.setItem('gantt-logo', dataUrl); } catch(e) {
+      toast('ロゴの保存に失敗しました（容量不足の可能性があります）', 'err');
+    }
+    toast('ロゴを設定しました', 'ok');
+  };
+  reader.readAsDataURL(file);
+  // 同じファイルを再選択できるようリセット
+  input.value = '';
+}
+
+function applyLogo(dataUrl) {
+  const wrap = $('logo-wrap');
+  const img  = $('logo-img');
+  img.src = dataUrl;
+  wrap.classList.add('has-logo');
+  // ヒントテキストを変更
+  const hint = $('logo-hint');
+  if (hint) hint.textContent = 'ロゴを変更 / 右クリックで削除';
+}
+
+function removeLogo() {
+  const wrap = $('logo-wrap');
+  const img  = $('logo-img');
+  wrap.classList.remove('has-logo');
+  img.src = '';
+  try { localStorage.removeItem('gantt-logo'); } catch(e) {}
+  toast('ロゴを削除しました', 'ok');
+}
+
+function loadLogo() {
+  try {
+    const saved = localStorage.getItem('gantt-logo');
+    if (saved) applyLogo(saved);
+  } catch(e) {}
+}
+
+// 右クリックでロゴ削除メニュー
+document.addEventListener('DOMContentLoaded', () => {
+  const wrap = $('logo-wrap');
+  if (wrap) {
+    wrap.addEventListener('contextmenu', e => {
+      if (!wrap.classList.contains('has-logo')) return;
+      e.preventDefault();
+      if (confirm('ロゴを削除しますか？')) removeLogo();
+    });
+  }
+});
+
+
+// ══════════════════════════════════════════════════════
+//  AUTH & LOGIN
+// ══════════════════════════════════════════════════════
+function doLogin() {
+  const email = ($('login-email').value || '').trim().toLowerCase();
+  if (!email) { $('login-err').textContent = 'メールアドレスを入力してください'; return; }
+
+  const member = DATA.members.find(m => m.email && m.email.toLowerCase() === email);
+  if (!member) {
+    $('login-err').textContent = 'このメールアドレスは登録されていません';
+    return;
+  }
+
+  currentUser = member;
+  localStorage.setItem('gantt-user-email', email);
+  applyAuthState();
+}
+
+function doLogout() {
+  currentUser = null;
+  localStorage.removeItem('gantt-user-email');
+  $('login-overlay').style.display = 'flex';
+  $('user-chip').style.display     = 'none';
+  applyEditPermission(false);
+}
+
+function tryAutoLogin() {
+  const saved = localStorage.getItem('gantt-user-email');
+  if (!saved) return false;
+  const member = DATA.members.find(m => m.email && m.email.toLowerCase() === saved.toLowerCase());
+  if (!member) return false;
+  currentUser = member;
+  return true;
+}
+
+function applyAuthState() {
+  $('login-overlay').style.display = 'none';
+  $('login-err').textContent = '';
+
+  const chip = $('user-chip');
+  chip.style.display = 'flex';
+  $('user-chip-name').textContent = currentUser.name;
+  $('user-chip-badge').innerHTML  = currentUser.canEdit
+    ? '<span class="edit-badge">編集可</span>'
+    : '<span class="readonly-badge">閲覧のみ</span>';
+
+  applyEditPermission(currentUser.canEdit);
+}
+
+function applyEditPermission(canEdit) {
+  // 保存ボタン・タスク追加ボタン
+  document.querySelectorAll('.btn.primary, .btn[onclick*="openAddTask"], .btn[onclick*="saveToGitHub"]')
+    .forEach(el => { el.style.display = canEdit ? '' : 'none'; });
+  // 編集タブ
+  ['task-panel','members-panel','settings-panel','milestone-panel'].forEach(p => {
+    const tab = document.querySelector(`.tab[data-panel="${p}"]`);
+    if (tab) tab.style.display = canEdit ? '' : 'none';
+  });
+  // ガントチャートのドラッグ制御フラグ
+  window._editLocked = !canEdit;
+}
+
+// ══════════════════════════════════════════════════════
+//  EDIT LOG
+// ══════════════════════════════════════════════════════
+let _editLogCache = [];
+
+async function appendEditLog(summary) {
+  const { repo, token, branch } = DATA.settings;
+  if (!repo || !token || !currentUser) return;
+
+  const entry = {
+    ts:     new Date().toISOString(),
+    name:   currentUser.name,
+    email:  currentUser.email,
+    summary
+  };
+
+  try {
+    // 既存ログ取得
+    let logs = [];
+    let sha  = '';
+    const r = await fetch(
+      `https://api.github.com/repos/${repo}/contents/data/editlog.json?t=${Date.now()}`,
+      { headers: { Authorization:`Bearer ${token}`, Accept:'application/vnd.github+json', 'Cache-Control':'no-cache' } }
+    );
+    if (r.ok) {
+      const j = await r.json();
+      sha  = j.sha;
+      logs = JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\s/g,'')))));
+    }
+
+    logs.unshift(entry);           // 新しい順
+    if (logs.length > 200) logs = logs.slice(0, 200);  // 最大200件
+
+    const content = btoa(unescape(encodeURIComponent(JSON.stringify(logs, null, 2))));
+    const body    = { message:`ログ追記: ${currentUser.name}`, content, branch: branch||'main' };
+    if (sha) body.sha = sha;
+
+    await fetch(
+      `https://api.github.com/repos/${repo}/contents/data/editlog.json`,
+      { method:'PUT', headers:{ Authorization:`Bearer ${token}`,
+          Accept:'application/vnd.github+json', 'Content-Type':'application/json' },
+        body: JSON.stringify(body) }
+    );
+    _editLogCache = logs;
+  } catch(e) {
+    console.warn('[log] Failed to append edit log:', e.message);
+  }
+}
+
+async function loadEditLog() {
+  const { repo, token } = DATA.settings;
+  if (!repo || !token) { $('log-list').innerHTML = '<p style="color:var(--text3)">設定タブでGitHubリポジトリを設定してください</p>'; return; }
+
+  $('log-list').innerHTML = '<p style="color:var(--text3)">読み込み中...</p>';
+  try {
+    const r = await fetch(
+      `https://api.github.com/repos/${repo}/contents/data/editlog.json?t=${Date.now()}`,
+      { headers: { Authorization:`Bearer ${token}`, Accept:'application/vnd.github+json', 'Cache-Control':'no-cache' } }
+    );
+    if (!r.ok) { $('log-list').innerHTML = '<p style="color:var(--text3)">ログがありません（まだ保存されていない可能性があります）</p>'; return; }
+    const j    = await r.json();
+    const logs = JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\s/g,'')))));
+    _editLogCache = logs;
+    renderLogList(logs);
+  } catch(e) {
+    $('log-list').innerHTML = '<p style="color:var(--red)">ログの読み込みに失敗しました: ' + esc(e.message) + '</p>';
+  }
+}
+
+function renderLogList(logs) {
+  if (!logs.length) {
+    $('log-list').innerHTML = '<p style="color:var(--text3)">ログがありません</p>';
+    return;
+  }
+  $('log-list').innerHTML = logs.map(l => {
+    const dt   = new Date(l.ts);
+    const time = dt.toLocaleString('ja-JP', { timeZone:'Asia/Tokyo' });
+    const init = (l.name || '?').charAt(0).toUpperCase();
+    return `<div class="log-entry">
+      <div class="log-avatar">${init}</div>
+      <div class="log-body">
+        <span class="log-name">${esc(l.name)}</span>
+        <span class="log-time">${esc(time)}</span>
+        <div class="log-msg">${esc(l.email)}</div>
+        <div class="log-diff">${esc(l.summary)}</div>
+      </div>
+    </div>`;
+  }).join('');
+}
+
+function openLogPanel() {
+  document.querySelectorAll('.tab').forEach(t=>t.classList.remove('active'));
+  document.querySelectorAll('.panel').forEach(p=>p.classList.remove('active'));
+  const tab = document.querySelector('[data-panel="log-panel"]');
+  if (tab) tab.classList.add('active');
+  $('log-panel').classList.add('active');
+  loadEditLog();
+}
+
+// ══════════════════════════════════════════════════════
+//  MERGE SAVE（複数人同時編集対応）
+// ══════════════════════════════════════════════════════
+async function mergeAndSave(localData, summary) {
+  const { repo, token, branch } = DATA.settings;
+  if (!repo || !token) return false;
+
+  const targetBranch = branch || 'main';
+  const MAX_RETRY = 4;
+
+  for (let attempt = 1; attempt <= MAX_RETRY; attempt++) {
+    try {
+      // ── 最新のリモートデータを取得 ──
+      const r = await fetch(
+        `https://api.github.com/repos/${repo}/contents/data/tasks.json?t=${Date.now()}`,
+        { headers:{ Authorization:`Bearer ${token}`, Accept:'application/vnd.github+json', 'Cache-Control':'no-cache' } }
+      );
+
+      let remoteData = null;
+      let sha = '';
+      if (r.ok) {
+        const j   = await r.json();
+        sha        = j.sha;
+        remoteData = JSON.parse(decodeURIComponent(escape(atob(j.content.replace(/\s/g,'')))));
+      } else if (r.status === 404) {
+        remoteData = null;
+      } else if (r.status === 401) {
+        throw new Error('401_CREDENTIALS');
+      } else {
+        throw new Error('fetch失敗: ' + r.status);
+      }
+
+      // ── マージ処理（タスクIDベースで後勝ち） ──
+      let mergedData = localData;
+      if (remoteData) {
+        const remoteTaskMap = {};
+        (remoteData.tasks||[]).forEach(t => { remoteTaskMap[t.id] = t; });
+        const localTaskMap  = {};
+        (localData.tasks||[]).forEach(t  => { localTaskMap[t.id]  = t; });
+
+        // ローカルに存在するタスクはローカル優先（編集者の変更を保持）
+        // リモートにのみ存在するタスクは追加（他ユーザーが追加したタスク）
+        const allIds = new Set([
+          ...Object.keys(remoteTaskMap),
+          ...Object.keys(localTaskMap)
+        ]);
+        const mergedTasks = [];
+        allIds.forEach(id => {
+          if (localTaskMap[id])  mergedTasks.push(localTaskMap[id]);   // ローカル優先
+          else                   mergedTasks.push(remoteTaskMap[id]);  // リモートのみ存在
+        });
+        mergedData = { ...localData, tasks: mergedTasks };
+      }
+
+      // ── 保存 ──
+      const saveData = { ...mergedData, settings: { ...mergedData.settings, token:'' } };
+      const content  = btoa(unescape(encodeURIComponent(JSON.stringify(saveData, null, 2))));
+      const body     = {
+        message: `${currentUser ? currentUser.name : '?'}: ${summary}`,
+        content, branch: targetBranch
+      };
+      if (sha) body.sha = sha;
+
+      const pr = await fetch(
+        `https://api.github.com/repos/${repo}/contents/data/tasks.json`,
+        { method:'PUT', headers:{ Authorization:`Bearer ${token}`,
+            Accept:'application/vnd.github+json', 'Content-Type':'application/json' },
+          body: JSON.stringify(body) }
+      );
+
+      if (pr.ok) {
+        // マージ結果をローカルDATAに反映
+        DATA.tasks = mergedData.tasks;
+        return true;
+      }
+
+      if (pr.status === 409) {
+        if (attempt < MAX_RETRY) {
+          toast(`⏳ 競合検出 → 再マージ中... (${attempt}/${MAX_RETRY})`, 'info');
+          await new Promise(res => setTimeout(res, 1000 * attempt));
+          continue;
+        }
+        throw new Error('409_CONFLICT');
+      }
+      if (pr.status === 401) throw new Error('401_CREDENTIALS');
+      throw new Error('PUT失敗: ' + pr.status);
+
+    } catch(e) {
+      if (e.message === '401_CREDENTIALS') { showCredentialError(); return false; }
+      if (e.message === '409_CONFLICT')    { toast('❌ 競合を解消できませんでした。ページを再読み込みしてください', 'err'); return false; }
+      if (attempt < MAX_RETRY) { await new Promise(res => setTimeout(res, 800 * attempt)); continue; }
+      toast('❌ 保存エラー: ' + e.message, 'err');
+      return false;
+    }
+  }
+  return false;
+}
+
+// ══════════════════════════════════════════════════════
+//  READONLY MODE
+// ══════════════════════════════════════════════════════
+function applyReadonlyMode() {
+  if (!READONLY) return;
+
+  // タイトルバナーを追加
+  const banner = document.createElement('div');
+  banner.id = 'readonly-banner';
+  banner.innerHTML = '👁 閲覧専用モード &nbsp;|&nbsp; 編集する場合は <a href="index.html" style="color:#fff;font-weight:700;text-decoration:underline">編集版（index.html）</a> を開いてください';
+  banner.style.cssText = [
+    'position:fixed','bottom:0','left:0','right:0','z-index:9999',
+    'background:#018FC1','color:#fff','text-align:center',
+    'font-size:12px','padding:7px','font-family:var(--font)',
+    'box-shadow:0 -2px 8px rgba(0,0,0,0.15)'
+  ].join(';');
+  document.body.appendChild(banner);
+
+  // 編集系ボタン・タブを非表示（閲覧専用モードのみ）
+  document.querySelectorAll(
+    '.btn.primary, .btn[onclick*="openAddTask"], .btn[onclick*="saveToGitHub"]'
+  ).forEach(el => el.style.display = 'none');
+
+  // 閲覧専用では編集タブのみ非表示（ガントチャート・ログは見える）
+  ['task-panel','members-panel','settings-panel','milestone-panel'].forEach(p => {
+    const tab = document.querySelector(`.tab[data-panel="${p}"]`);
+    if (tab) tab.style.display = 'none';
+  });
+
+  // ロゴのアップロード入力を無効化
+  const logoInput = $('logo-input');
+  if (logoInput) logoInput.disabled = true;
+  const logoWrap = $('logo-wrap');
+  if (logoWrap) { logoWrap.title = ''; logoWrap.style.cursor='default'; }
+  const logoHint = $('logo-hint');
+  if (logoHint) logoHint.style.display = 'none';
+
+  // ドラッグ・リサイズ・ダブルクリック編集を無効化
+  document.addEventListener('mousedown', e => {
+    if (e.target.closest('.task-bar') || e.target.closest('.rhandle')) {
+      e.stopPropagation();
+    }
+  }, true);
+}
+
+// ══════════════════════════════════════════════════════
+//  INIT
+// ══════════════════════════════════════════════════════
+document.addEventListener('DOMContentLoaded', async () => {
+  const now = new Date(); now.setHours(0,0,0,0);
+  viewStart = addDays(now, -7);
+
+  if (READONLY) {
+    // 閲覧専用モード：データ埋め込み済み・ログイン不要
+    renderAll();
+    setDirty(false);
+    setTimeout(() => { $('gantt-body').scrollLeft = Math.max(0, 7*dayW - 60); }, 100);
+    applyReadonlyMode();
+    return;
+  }
+
+  // ── 設定・ロゴ読み込み ──
+  loadSettings();
+  loadLogo();
+
+  // ── GitHubからデータ取得（設定済みの場合のみ） ──
+  if (DATA.settings.repo && DATA.settings.token) {
+    await loadFromGitHub();
+    await loadMembersFromGitHub(true);  // members.xlsxをサイレント自動読み込み
+  }
+
+  renderAll();
+  setDirty(false);
+
+  setTimeout(() => { $('gantt-body').scrollLeft = Math.max(0, 7*dayW - 60); }, 100);
+
+  // ── ログイン処理 ──
+  if (DATA.members.length === 0) {
+    // メンバーが誰もいない場合はGitHub設定を促す（ログイン画面をスキップ）
+    $('login-overlay').style.display = 'none';
+    // 全タブ・全機能を開放（初期セットアップ用）
+    applyEditPermission(true);
+    toast('💡 設定タブでGitHubを設定し、メンバータブでメンバーを登録してください', 'info');
+  } else if (tryAutoLogin()) {
+    // localStorage に保存されたメールで自動ログイン成功
+    $('login-overlay').style.display = 'none';
+    applyAuthState();
+  } else {
+    // 通常のログイン画面表示
+    $('login-overlay').style.display = 'flex';
+    // ログイン前はガントチャート閲覧のみ許可（編集タブは非表示）
+    applyEditPermission(false);
+  }
+
+  window.addEventListener('beforeunload', e => {
+    if (isDirty) { e.preventDefault(); e.returnValue=''; }
+  });
+
+  applyReadonlyMode();
+});
+</script>
+</body>
+</html>

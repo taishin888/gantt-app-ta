@@ -2427,6 +2427,38 @@ function showCredentialError() {
   };
 }
 
+// ── 同一サイトのdata/tasks.jsonを直接fetch（トークン不要） ──
+async function loadFromLocalJson() {
+  try {
+    // GitHub Pagesの場合: docs/data/tasks.json が同じドメインにある
+    const urls = [
+      './data/tasks.json',           // 相対パス（docsフォルダ内）
+      'data/tasks.json',             // 相対パス
+    ];
+    for (const url of urls) {
+      try {
+        const r = await fetch(url + '?t=' + Date.now(), { cache: 'no-store' });
+        if (!r.ok) continue;
+        const loaded = await r.json();
+        if (!loaded.tasks && !loaded.groups) continue; // 空ファイルはスキップ
+        if (loaded.groups)      DATA.groups      = loaded.groups;
+        if (loaded.tasks)       DATA.tasks       = loaded.tasks;
+        if (loaded.members)     DATA.members     = loaded.members;
+        if (loaded.holidays)    DATA.holidays    = loaded.holidays;
+        if (loaded.milestones)  DATA.milestones  = loaded.milestones;
+        console.log('[load] Loaded from', url, ':', (loaded.tasks||[]).length, 'tasks');
+        return true; // 成功
+      } catch(e) {
+        console.log('[load] Skip', url, ':', e.message);
+      }
+    }
+    return false;
+  } catch(e) {
+    console.warn('[load] loadFromLocalJson error:', e.message);
+    return false;
+  }
+}
+
 async function loadFromGitHub() {
   const { repo, token } = DATA.settings;
   if (!repo||!token) return;
@@ -2951,14 +2983,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadSettings();
   loadLogo();
 
-  // ── GitHubからデータ取得（設定済みの場合のみ） ──
-  if (DATA.settings.repo && DATA.settings.token) {
-    await loadFromGitHub();
-    await loadMembersFromGitHub(true);  // members.xlsxをサイレント自動読み込み
+  // ── Step1: トークン不要でローカルJSONから読み込み（別PCでも動く） ──
+  const localLoaded = await loadFromLocalJson();
+  if (localLoaded) {
+    console.log('[init] Data loaded from local JSON');
+    renderAll();
+    setDirty(false);
   }
 
-  renderAll();
-  setDirty(false);
+  // ── Step2: GitHub APIでより新しいデータを取得（設定済みの場合） ──
+  if (DATA.settings.repo && DATA.settings.token) {
+    await loadFromGitHub();
+    await loadMembersFromGitHub(true);
+  }
+
+  if (!localLoaded) {
+    renderAll();
+    setDirty(false);
+  }
 
   setTimeout(() => { $('gantt-body').scrollLeft = Math.max(0, 7*dayW - 60); }, 100);
 

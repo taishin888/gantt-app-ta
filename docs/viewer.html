@@ -793,9 +793,13 @@ select {
 
       <div class="section-card">
         <div class="section-card-header"><h3>GitHub 設定</h3></div>
+        <div id="gh-config-notice" style="display:none;margin-bottom:14px;padding:10px 14px;background:rgba(1,143,193,0.08);border-left:3px solid var(--accent);border-radius:6px;font-size:12px;color:var(--text2)">
+          ℹ️ リポジトリは自動設定済みです。<strong>Personal Access Token</strong> だけ入力して「設定保存」してください。<br>
+          <span style="color:var(--text3);font-size:11px">Token は このブラウザにのみ保存されます。別のPCでは再入力が必要です。</span>
+        </div>
         <div class="setting-row">
           <label>リポジトリ (owner/repo)</label>
-          <input type="text" id="cfg-repo" placeholder="例: your-org/gantt-data">
+          <input type="text" id="cfg-repo" placeholder="例: taishin888/gantt-app-ta">
         </div>
         <div class="setting-row">
           <label>Personal Access Token</label>
@@ -811,10 +815,20 @@ select {
           <label>ブランチ</label>
           <input type="text" id="cfg-branch" value="main" style="width:120px">
         </div>
-        <div style="margin-top:14px;display:flex;gap:8px">
+        <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
           <button class="btn" onclick="testGH()">接続テスト</button>
-          <button class="btn primary" onclick="saveSettings()">設定保存</button>
+          <button class="btn primary" onclick="saveSettings()">💾 設定保存（このブラウザ）</button>
+          <button class="btn primary" onclick="saveSettingsToGitHub()" title="設定をGitHubのdocs/index.htmlに書き込み、別PCでも有効になります">☁️ 全PCに反映（GitHubへ書き込み）</button>
         </div>
+        <p style="font-size:11px;color:var(--text3);margin-top:8px">
+          💡 <strong>別PCでも使えるようにする</strong>には「☁️ 全PCに反映」をクリックしてください。<br>
+          トークンがGitHubの <code style="background:var(--bg3);padding:1px 4px;border-radius:3px">docs/index.html</code> に書き込まれ、どの端末でも自動接続されます。
+        </p>
+          <button class="btn" onclick="copySettingsUrl()" title="設定をURLに含めてコピー（Token共有用）">🔗 設定URLをコピー</button>
+        </div>
+        <p style="font-size:11px;color:var(--text3);margin-top:10px">
+          💡 Tokenの取得: GitHub → Settings → Developer settings → Personal access tokens → Generate new token（<code style="background:var(--bg3);padding:1px 4px;border-radius:3px">repo</code>スコープ必須）
+        </p>
       </div>
 
       <div class="section-card">
@@ -1117,6 +1131,13 @@ let DATA = {
 
 // 閲覧専用モードフラグ（GitHub Actionsが書き換える）
 const READONLY = true;  // __READONLY_FLAG__
+
+// GitHub設定（GitHub Actionsが自動埋め込み。手動変更不要）
+// __GITHUB_CONFIG_START__
+const GITHUB_REPO   = '';   // __GITHUB_REPO__
+const GITHUB_TOKEN  = '';   // __GITHUB_TOKEN__
+const GITHUB_BRANCH = 'main'; // __GITHUB_BRANCH__
+// __GITHUB_CONFIG_END__
 
 // ══════════════════════════════════════════════════════
 //  VIEW STATE
@@ -2284,6 +2305,85 @@ function validateToken(input) {
   }
 }
 
+// 設定をGitHubのdocs/index.htmlに書き込む（別PCでも有効になる）
+async function saveSettingsToGitHub() {
+  const repo   = $('cfg-repo').value.trim();
+  const token  = $('cfg-token').value.trim();
+  const branch = $('cfg-branch').value.trim() || 'main';
+
+  if (!repo || !token) {
+    toast('リポジトリとトークンを入力してから実行してください', 'err');
+    return;
+  }
+  if (!token.startsWith('ghp_') && !token.startsWith('github_pat_')) {
+    toast('トークン形式が正しくありません', 'err');
+    return;
+  }
+
+  if (!confirm(
+    '⚠️ トークンをGitHubのdocs/index.htmlに書き込みます。\n' +
+    'リポジトリがPublicの場合、トークンが公開されます。\n\n' +
+    'Privateリポジトリの場合のみ実行してください。\n\nよろしいですか？'
+  )) return;
+
+  toast('docs/index.html にトークンを書き込み中...', 'info');
+
+  try {
+    // 現在のdocs/index.htmlを取得
+    const r = await fetch(
+      `https://api.github.com/repos/${repo}/contents/docs/index.html?t=${Date.now()}`,
+      { headers: { Authorization: `Bearer ${token}`, Accept: 'application/vnd.github+json' } }
+    );
+    if (!r.ok) throw new Error(`docs/index.html の取得失敗: ${r.status}`);
+    const j = await r.json();
+    const sha = j.sha;
+    let content = decodeURIComponent(escape(atob(j.content.replace(/\s/g, ''))));
+
+    // __GITHUB_CONFIG_START__ ～ __GITHUB_CONFIG_END__ を書き換える
+    const cfgRe = /\/\/ __GITHUB_CONFIG_START__[\s\S]*?\/\/ __GITHUB_CONFIG_END__/;
+    if (!cfgRe.test(content)) {
+      throw new Error('設定マーカーが見つかりません。最新のdocs/index.htmlをアップロードしてください');
+    }
+
+    const newCfg = `// __GITHUB_CONFIG_START__
+const GITHUB_REPO   = '${repo}';   // __GITHUB_REPO__
+const GITHUB_TOKEN  = '${token}';  // __GITHUB_TOKEN__
+const GITHUB_BRANCH = '${branch}'; // __GITHUB_BRANCH__
+// __GITHUB_CONFIG_END__`;
+
+    content = content.replace(cfgRe, newCfg);
+
+    // GitHub に PUT
+    const encoded = btoa(unescape(encodeURIComponent(content)));
+    const pr = await fetch(
+      `https://api.github.com/repos/${repo}/contents/docs/index.html`,
+      {
+        method: 'PUT',
+        headers: {
+          Authorization: `Bearer ${token}`,
+          Accept: 'application/vnd.github+json',
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          message: '設定更新: GitHub接続情報を埋め込み',
+          content: encoded,
+          sha,
+          branch
+        })
+      }
+    );
+    if (!pr.ok) throw new Error(`書き込み失敗: ${pr.status}`);
+
+    // ローカルにも保存
+    saveSettings();
+
+    toast('✅ docs/index.html に設定を書き込みました。別PCでも自動接続されます。', 'ok');
+
+  } catch(e) {
+    toast('❌ エラー: ' + e.message, 'err');
+  }
+}
+
 function saveSettings() {
   DATA.settings.repo    = $('cfg-repo').value.trim();
   DATA.settings.token   = $('cfg-token').value.trim();
@@ -2291,27 +2391,83 @@ function saveSettings() {
   DATA.settings.webhook = $('cfg-webhook').value.trim();
   DATA.settings.r1      = parseInt($('cfg-r1').value)||3;
   DATA.settings.r2      = parseInt($('cfg-r2').value)||1;
-  const toSave = {...DATA.settings};
-  localStorage.setItem('gantt-cfg', JSON.stringify(toSave));
+  localStorage.setItem('gantt-cfg', JSON.stringify({...DATA.settings}));
   toast('設定を保存しました','ok');
 }
 
 function loadSettings() {
-  const s = localStorage.getItem('gantt-cfg');
-  if (!s) return;
+  // 1. HTMLに埋め込まれた定数を最優先（Actionsが埋め込んだもの）
+  if (typeof GITHUB_REPO  !== 'undefined' && GITHUB_REPO)  DATA.settings.repo   = GITHUB_REPO;
+  if (typeof GITHUB_TOKEN !== 'undefined' && GITHUB_TOKEN) DATA.settings.token  = GITHUB_TOKEN;
+  if (typeof GITHUB_BRANCH!== 'undefined' && GITHUB_BRANCH)DATA.settings.branch = GITHUB_BRANCH;
+
+  // 2. URLパラメータ（?t=TOKEN&r=REPO 形式）
   try {
-    const cfg = JSON.parse(s);
-    Object.assign(DATA.settings, cfg);
-    $('cfg-repo').value    = cfg.repo    || '';
-    $('cfg-token').value   = cfg.token   || '';
-    $('cfg-branch').value  = cfg.branch  || 'main';
-    $('cfg-webhook').value = cfg.webhook || '';
-    $('cfg-r1').value      = cfg.r1 ?? 3;
-    $('cfg-r2').value      = cfg.r2 ?? 1;
-    // 読み込み後にバリデーション表示
-    const tokenInput = $('cfg-token');
-    if (tokenInput && tokenInput.value) validateToken(tokenInput);
+    const params = new URLSearchParams(window.location.search);
+    const urlToken  = params.get('t');
+    const urlRepo   = params.get('r');
+    const urlBranch = params.get('b');
+    if (urlToken)  DATA.settings.token  = urlToken;
+    if (urlRepo)   DATA.settings.repo   = urlRepo;
+    if (urlBranch) DATA.settings.branch = urlBranch;
+    // URLパラメータがあったらlocalStorageに保存してURLをクリーン
+    if (urlToken || urlRepo) {
+      localStorage.setItem('gantt-cfg', JSON.stringify({...DATA.settings}));
+      // tokenをURLから除去（セキュリティのため）
+      const cleanUrl = window.location.pathname;
+      window.history.replaceState({}, '', cleanUrl);
+      toast('✅ URLから設定を読み込みました', 'ok');
+    }
   } catch(e) {}
+
+  // 3. localStorageの設定
+  const s = localStorage.getItem('gantt-cfg');
+  if (s) {
+    try {
+      const cfg = JSON.parse(s);
+      if (!DATA.settings.repo)   DATA.settings.repo    = cfg.repo    || '';
+      if (!DATA.settings.token)  DATA.settings.token   = cfg.token   || '';
+      if (!DATA.settings.branch) DATA.settings.branch  = cfg.branch  || 'main';
+      DATA.settings.webhook = cfg.webhook || '';
+      DATA.settings.r1      = cfg.r1 ?? 3;
+      DATA.settings.r2      = cfg.r2 ?? 1;
+    } catch(e) {}
+  }
+
+  // 4. 設定UIに反映
+  if ($('cfg-repo'))    $('cfg-repo').value    = DATA.settings.repo    || '';
+  if ($('cfg-token'))   $('cfg-token').value   = DATA.settings.token   || '';
+  if ($('cfg-branch'))  $('cfg-branch').value  = DATA.settings.branch  || 'main';
+  if ($('cfg-webhook')) $('cfg-webhook').value  = DATA.settings.webhook || '';
+  if ($('cfg-r1'))      $('cfg-r1').value       = DATA.settings.r1 ?? 3;
+  if ($('cfg-r2'))      $('cfg-r2').value       = DATA.settings.r2 ?? 1;
+
+  // repoが埋め込み済みなら案内を表示
+  if (typeof GITHUB_REPO !== 'undefined' && GITHUB_REPO) {
+    const notice = $('gh-config-notice');
+    if (notice) notice.style.display = 'block';
+  }
+
+  const tokenInput = $('cfg-token');
+  if (tokenInput && tokenInput.value) validateToken(tokenInput);
+}
+
+// 設定をURLに含めてクリップボードにコピー（別PCへの共有用）
+function copySettingsUrl() {
+  const repo   = DATA.settings.repo   || $('cfg-repo').value.trim();
+  const token  = DATA.settings.token  || $('cfg-token').value.trim();
+  const branch = DATA.settings.branch || $('cfg-branch').value.trim() || 'main';
+  if (!token) { toast('先にTokenを入力してください', 'err'); return; }
+
+  const base = window.location.origin + window.location.pathname;
+  const url  = `${base}?t=${encodeURIComponent(token)}&r=${encodeURIComponent(repo)}&b=${encodeURIComponent(branch)}`;
+
+  navigator.clipboard.writeText(url).then(() => {
+    toast('✅ 設定URLをコピーしました。別のPCでこのURLを開けば自動設定されます', 'ok');
+  }).catch(() => {
+    // フォールバック
+    prompt('以下のURLをコピーして別のPCで開いてください:', url);
+  });
 }
 
 async function testGH() {
@@ -2470,6 +2626,38 @@ function showCredentialError() {
     closeModal();
     document.querySelector('[data-panel="settings-panel"]').click();
   };
+}
+
+// ── 同一サイトのdata/tasks.jsonを直接fetch（トークン不要） ──
+async function loadFromLocalJson() {
+  try {
+    // GitHub Pagesの場合: docs/data/tasks.json が同じドメインにある
+    const urls = [
+      './data/tasks.json',           // 相対パス（docsフォルダ内）
+      'data/tasks.json',             // 相対パス
+    ];
+    for (const url of urls) {
+      try {
+        const r = await fetch(url + '?t=' + Date.now(), { cache: 'no-store' });
+        if (!r.ok) continue;
+        const loaded = await r.json();
+        if (!loaded.tasks && !loaded.groups) continue; // 空ファイルはスキップ
+        if (loaded.groups)      DATA.groups      = loaded.groups;
+        if (loaded.tasks)       DATA.tasks       = loaded.tasks;
+        if (loaded.members)     DATA.members     = loaded.members;
+        if (loaded.holidays)    DATA.holidays    = loaded.holidays;
+        if (loaded.milestones)  DATA.milestones  = loaded.milestones;
+        console.log('[load] Loaded from', url, ':', (loaded.tasks||[]).length, 'tasks');
+        return true; // 成功
+      } catch(e) {
+        console.log('[load] Skip', url, ':', e.message);
+      }
+    }
+    return false;
+  } catch(e) {
+    console.warn('[load] loadFromLocalJson error:', e.message);
+    return false;
+  }
 }
 
 async function loadFromGitHub() {
@@ -2996,14 +3184,24 @@ document.addEventListener('DOMContentLoaded', async () => {
   loadSettings();
   loadLogo();
 
-  // ── GitHubからデータ取得（設定済みの場合のみ） ──
-  if (DATA.settings.repo && DATA.settings.token) {
-    await loadFromGitHub();
-    await loadMembersFromGitHub(true);  // members.xlsxをサイレント自動読み込み
+  // ── Step1: トークン不要でローカルJSONから読み込み（別PCでも動く） ──
+  const localLoaded = await loadFromLocalJson();
+  if (localLoaded) {
+    console.log('[init] Data loaded from local JSON');
+    renderAll();
+    setDirty(false);
   }
 
-  renderAll();
-  setDirty(false);
+  // ── Step2: GitHub APIでより新しいデータを取得（設定済みの場合） ──
+  if (DATA.settings.repo && DATA.settings.token) {
+    await loadFromGitHub();
+    await loadMembersFromGitHub(true);
+  }
+
+  if (!localLoaded) {
+    renderAll();
+    setDirty(false);
+  }
 
   setTimeout(() => { $('gantt-body').scrollLeft = Math.max(0, 7*dayW - 60); }, 100);
 

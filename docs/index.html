@@ -793,10 +793,6 @@ select {
 
       <div class="section-card">
         <div class="section-card-header"><h3>GitHub 設定</h3></div>
-        <div id="gh-config-notice" style="display:none;margin-bottom:14px;padding:10px 14px;background:rgba(1,143,193,0.08);border-left:3px solid var(--accent);border-radius:6px;font-size:12px;color:var(--text2)">
-          ℹ️ リポジトリは自動設定済みです。<strong>Personal Access Token</strong> だけ入力して「設定保存」してください。<br>
-          <span style="color:var(--text3);font-size:11px">Token は このブラウザにのみ保存されます。別のPCでは再入力が必要です。</span>
-        </div>
         <div class="setting-row">
           <label>リポジトリ (owner/repo)</label>
           <input type="text" id="cfg-repo" placeholder="例: taishin888/gantt-app-ta">
@@ -804,31 +800,28 @@ select {
         <div class="setting-row">
           <label>Personal Access Token</label>
           <div style="flex:1;display:flex;gap:6px;align-items:center">
-            <input type="password" id="cfg-token" placeholder="ghp_xxxx... または github_pat_xxxx..."
+            <input type="password" id="cfg-token"
+                   placeholder="ghp_xxxx... または github_pat_xxxx..."
                    style="flex:1" autocomplete="off"
                    oninput="validateToken(this)">
             <button class="btn sm" onclick="toggleTokenVisible()" id="token-eye" title="表示/非表示">👁</button>
           </div>
         </div>
-        <div id="token-hint" style="font-size:11px;padding:4px 0 0 200px;display:none"></div>
+        <div id="token-hint" style="font-size:11px;padding:4px 0 0 0;display:none;margin-bottom:8px"></div>
         <div class="setting-row">
           <label>ブランチ</label>
           <input type="text" id="cfg-branch" value="main" style="width:120px">
         </div>
-        <div style="margin-top:14px;display:flex;gap:8px;flex-wrap:wrap">
-          <button class="btn" onclick="testGH()">接続テスト</button>
-          <button class="btn primary" onclick="saveSettings()">💾 設定保存（このブラウザ）</button>
-          <button class="btn primary" onclick="saveSettingsToGitHub()" title="設定をGitHubのdocs/index.htmlに書き込み、別PCでも有効になります">☁️ 全PCに反映（GitHubへ書き込み）</button>
+        <div style="margin-top:16px;display:flex;gap:8px;flex-wrap:wrap;align-items:center">
+          <button class="btn" onclick="testGH()">🔌 接続テスト</button>
+          <button class="btn primary" onclick="saveSettings()">💾 このブラウザに保存</button>
+          <button class="btn primary" onclick="saveSettingsToGitHub()">☁️ 全PCに反映</button>
         </div>
-        <p style="font-size:11px;color:var(--text3);margin-top:8px">
-          💡 <strong>別PCでも使えるようにする</strong>には「☁️ 全PCに反映」をクリックしてください。<br>
-          トークンがGitHubの <code style="background:var(--bg3);padding:1px 4px;border-radius:3px">docs/index.html</code> に書き込まれ、どの端末でも自動接続されます。
-        </p>
-          <button class="btn" onclick="copySettingsUrl()" title="設定をURLに含めてコピー（Token共有用）">🔗 設定URLをコピー</button>
+        <div style="margin-top:12px;padding:10px 14px;background:rgba(1,143,193,0.07);border-left:3px solid var(--accent);border-radius:6px;font-size:12px;color:var(--text2)">
+          <div><strong>💾 このブラウザに保存</strong> → このPCだけで有効。別PCでは再入力が必要。</div>
+          <div style="margin-top:4px"><strong>☁️ 全PCに反映</strong> → GitHubのdocs/index.htmlにTokenを書き込み。どのPCでも自動接続。</div>
+          <div style="margin-top:6px;color:var(--text3);font-size:11px">Token取得: GitHub → Settings → Developer settings → Personal access tokens → Generate new token（<strong>repo</strong>スコープ必須）</div>
         </div>
-        <p style="font-size:11px;color:var(--text3);margin-top:10px">
-          💡 Tokenの取得: GitHub → Settings → Developer settings → Personal access tokens → Generate new token（<code style="background:var(--bg3);padding:1px 4px;border-radius:3px">repo</code>スコープ必須）
-        </p>
       </div>
 
       <div class="section-card">
@@ -838,7 +831,8 @@ select {
           <input type="text" id="cfg-webhook" placeholder="https://...webhook.office.com/...">
         </div>
         <p style="font-size:11px;color:var(--text3);margin-top:8px">
-          通知はGitHub Actions経由で送信されます。このURLをGitHub Secretsの <code style="background:var(--bg3);padding:1px 5px;border-radius:4px">TEAMS_WEBHOOK</code> に登録してください。
+          通知はGitHub Actions経由で送信されます。このURLをGitHub Secretsの
+          <code style="background:var(--bg3);padding:1px 5px;border-radius:4px">TEAMS_WEBHOOK</code>に登録してください。
         </p>
       </div>
 
@@ -853,6 +847,15 @@ select {
           <input type="number" id="cfg-r2" value="1" style="width:70px"> 日前
         </div>
       </div>
+
+      <div class="section-card">
+        <div class="section-card-header"><h3>ワークフローファイル</h3></div>
+        <p style="font-size:12px;color:var(--text3);margin-bottom:12px">GitHub Actions用のYAMLファイルをダウンロードしてリポジトリに配置してください。</p>
+        <button class="btn" onclick="downloadWorkflows()">📥 ワークフローをダウンロード</button>
+      </div>
+
+    </div>
+  </div>
 
       <div class="section-card">
         <div class="section-card-header"><h3>ワークフローファイル</h3></div>
